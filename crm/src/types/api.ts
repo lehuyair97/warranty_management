@@ -242,6 +242,11 @@ export interface CreateDeviceDto {
 }
 
 /**
+ * Device update payload.
+ */
+export type UpdateDeviceDto = Partial<CreateDeviceDto>;
+
+/**
  * Spare part creation payload.
  */
 export interface CreatePartDto {

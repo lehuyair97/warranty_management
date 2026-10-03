@@ -36,9 +36,12 @@ export function useCreateTicket() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateTicketDto) => ticketsService.createTicket(dto),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.devices.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }),
+      ]);
     },
   });
 }
@@ -55,9 +58,18 @@ export function useAssignTechnician() {
     }: {
       ticketId: number;
     } & AssignTechnicianDto) => ticketsService.assignTechnician(ticketId, dto),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    onSuccess: async (_data, variables) => {
+      const ticketId = variables?.ticketId;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        ticketId
+          ? queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(ticketId) })
+          : Promise.resolve(),
+        ticketId
+          ? queryClient.refetchQueries({ queryKey: queryKeys.tickets.detail(ticketId) })
+          : Promise.resolve(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }),
+      ]);
     },
   });
 }
@@ -74,11 +86,20 @@ export function useProcessTicket() {
     }: {
       ticketId: number;
     } & ProcessTicketDto) => ticketsService.processTicket(ticketId, dto),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.parts.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    onSuccess: async (_data, variables) => {
+      const ticketId = variables?.ticketId;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        ticketId
+          ? queryClient.invalidateQueries({ queryKey: queryKeys.tickets.detail(ticketId) })
+          : Promise.resolve(),
+        ticketId
+          ? queryClient.refetchQueries({ queryKey: queryKeys.tickets.detail(ticketId) })
+          : Promise.resolve(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.parts.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }),
+      ]);
     },
   });
 }
@@ -90,10 +111,15 @@ export function useDeleteTicket() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (ticketId: number) => ticketsService.deleteTicket(ticketId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    onSuccess: async (_data, ticketId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+        ticketId
+          ? queryClient.removeQueries({ queryKey: queryKeys.tickets.detail(ticketId) })
+          : Promise.resolve(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.reports.all }),
+      ]);
     },
   });
 }

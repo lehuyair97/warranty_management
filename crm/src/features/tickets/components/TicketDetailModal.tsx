@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
   IconCheckCircle,
   IconCreditCard,
+  IconEdit,
   IconHistory,
   IconLaptop,
   IconRefresh,
@@ -11,7 +12,7 @@ import {
   IconWrench,
 } from '@/assets/icon';
 import { formatVND } from '@/common/helpers/currency.helper';
-import { formatDateTime } from '@/common/helpers/date.helper';
+import { formatDate, formatDateTime } from '@/common/helpers/date.helper';
 import {
   getInvoiceStatusConfig,
   getTicketStatusConfig,
@@ -23,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { EditDeviceModal } from './EditDeviceModal';
 import { useProcessTicket, useTicketDetail } from '@/hooks/useTickets';
 import { uiActions } from '@/stores/ui.store';
 import { getErrorMessage, Ticket, TicketStatus } from '@/types';
@@ -35,9 +37,13 @@ interface TicketDetailModalProps {
 
 interface TicketStatusControlProps {
   ticket: Ticket;
+  onRefresh?: () => Promise<unknown> | void;
 }
 
-const TicketStatusControl: React.FC<TicketStatusControlProps> = ({ ticket }) => {
+const TicketStatusControl: React.FC<TicketStatusControlProps> = ({
+  ticket,
+  onRefresh,
+}) => {
   const [targetStatus, setTargetStatus] = useState<TicketStatus>(ticket.status);
   const processMutation = useProcessTicket();
   const statusCfg = getTicketStatusConfig(ticket.status);
@@ -51,6 +57,10 @@ const TicketStatusControl: React.FC<TicketStatusControlProps> = ({ ticket }) => 
         ticketId: ticket.id,
         status: targetStatus,
       });
+
+      if (onRefresh) {
+        await onRefresh();
+      }
 
       uiActions.addToast({
         type: 'success',
@@ -129,11 +139,13 @@ const TicketStatusControl: React.FC<TicketStatusControlProps> = ({ ticket }) => 
 interface TicketDiagnosisFormProps {
   ticket: Ticket;
   onCancel: () => void;
+  onRefresh?: () => Promise<unknown> | void;
 }
 
 const TicketDiagnosisForm: React.FC<TicketDiagnosisFormProps> = ({
   ticket,
   onCancel,
+  onRefresh,
 }) => {
   const [faultCause, setFaultCause] = useState(ticket.faultCause || '');
   const [repairSolution, setRepairSolution] = useState(ticket.repairSolution || '');
@@ -151,6 +163,10 @@ const TicketDiagnosisForm: React.FC<TicketDiagnosisFormProps> = ({
         repairSolution: repairSolution.trim() || undefined,
         estimatedCost: estimatedCost !== '' ? Number(estimatedCost) : undefined,
       });
+
+      if (onRefresh) {
+        await onRefresh();
+      }
 
       onCancel();
       uiActions.addToast({
@@ -232,7 +248,15 @@ const TicketDiagnosisForm: React.FC<TicketDiagnosisFormProps> = ({
   );
 };
 
-const TechnicalDiagnosisSection: React.FC<{ ticket: Ticket }> = ({ ticket }) => {
+interface TechnicalDiagnosisSectionProps {
+  ticket: Ticket;
+  onRefresh?: () => Promise<unknown> | void;
+}
+
+const TechnicalDiagnosisSection: React.FC<TechnicalDiagnosisSectionProps> = ({
+  ticket,
+  onRefresh,
+}) => {
   const [isEditing, setIsEditing] = useState(false);
 
   return (
@@ -281,6 +305,7 @@ const TechnicalDiagnosisSection: React.FC<{ ticket: Ticket }> = ({ ticket }) => 
         <TicketDiagnosisForm
           ticket={ticket}
           onCancel={() => setIsEditing(false)}
+          onRefresh={onRefresh}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
@@ -411,150 +436,183 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   onOpenChange,
   ticket,
 }) => {
-  const { data: freshTicket } = useTicketDetail(open ? ticket?.id : undefined);
+  const [editDeviceOpen, setEditDeviceOpen] = useState(false);
+  const { data: freshTicket, refetch: refetchTicket } = useTicketDetail(open ? ticket?.id : undefined);
   const activeTicket = freshTicket || ticket;
 
   if (!activeTicket) return null;
 
   return (
-    <BaseModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title={`Hồ sơ chi tiết: ${formatTicketCode(activeTicket.id)}`}
-      description={`Mã tiếp nhận bảo hành & sửa chữa hệ thống UIT CARE`}
-      size="2xl"
-      footerContent={
-        <div className="w-full flex items-center justify-between">
-          <span className="text-xs text-stone-500 font-mono">
-            Mã phiếu: <strong className="text-stone-800">{formatTicketCode(activeTicket.id)}</strong>
-            {activeTicket.device?.serialNumber && ` • S/N: ${activeTicket.device.serialNumber}`}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onOpenChange(false)}
-            className="min-h-[36px] px-5 font-semibold text-xs text-stone-700 hover:text-stone-900 border-sand-200"
-          >
-            Đóng
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-6">
-        {/* Status Banner & Transition Control */}
-        <TicketStatusControl
-          key={`${activeTicket.id}_${activeTicket.status}`}
-          ticket={activeTicket}
-        />
-
-        {/* 3 Grid Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Customer */}
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-              <IconUser className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>Khách hàng</span>
-            </div>
-            <div className="text-xs space-y-1 text-stone-600">
-              <div className="font-semibold text-stone-900">
-                {activeTicket.device?.customer?.fullName}
-              </div>
-              <div className="font-mono text-stone-700">
-                {activeTicket.device?.customer?.phoneNumber}
-              </div>
-              <div>{activeTicket.device?.customer?.address || 'Chưa cập nhật địa chỉ'}</div>
-            </div>
-          </Card>
-
-          {/* Device */}
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-              <IconLaptop className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>Thiết bị</span>
-            </div>
-            <div className="text-xs space-y-1 text-stone-600">
-              <div className="font-semibold text-stone-900">
-                {activeTicket.device?.deviceName}
-              </div>
-              <div className="font-mono text-stone-700">
-                S/N: {activeTicket.device?.serialNumber}
-              </div>
-              <div className="text-[11px] text-stone-500">
-                Thương hiệu: {activeTicket.device?.brand} | Loại: {activeTicket.device?.deviceType}
-              </div>
-            </div>
-          </Card>
-
-          {/* Personnel */}
-          <Card className="p-4 space-y-2">
-            <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-              <IconWrench className="w-4 h-4 text-amber-700 shrink-0" />
-              <span>Nhân sự phụ trách</span>
-            </div>
-            <div className="text-xs space-y-1 text-stone-600">
-              <div>
-                <span className="text-stone-400">Tiếp nhận: </span>
-                <span className="font-medium text-stone-800">
-                  {activeTicket.receptionist?.fullName || 'N/A'}
-                </span>
-              </div>
-              <div>
-                <span className="text-stone-400">Kỹ thuật: </span>
-                <span className="font-semibold text-amber-800">
-                  {activeTicket.technician?.fullName || 'Chưa phân công'}
-                </span>
-              </div>
-              <div>
-                <span className="text-stone-400">Ngày nhận: </span>
-                <span>{formatDateTime(activeTicket.receivedAt)}</span>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Diagnosis & Technical Findings */}
-        <TechnicalDiagnosisSection ticket={activeTicket} />
-
-        {/* Audit Trail & Status History */}
-        <TicketAuditTimeline history={activeTicket.statusHistory} />
-
-        {/* Billing / Invoices */}
-        {activeTicket.invoices && activeTicket.invoices.length > 0 && (
-          <div className="p-4 rounded-2xl bg-white border border-stone-200 space-y-3">
-            <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-2">
-              <IconCreditCard className="w-4 h-4 text-stone-500" />
-              Lịch sử thanh toán & Hóa đơn liên quan
-            </h4>
-
-            {activeTicket.invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className="p-3 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between text-xs"
-              >
-                <div>
-                  <span className="font-mono font-bold text-stone-900">
-                    Hóa đơn #{inv.id}
-                  </span>
-                  <span className="text-stone-500 ml-2">
-                    Công kỹ thuật: {formatVND(Number(inv.laborFee))}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-sm text-stone-900">
-                    {formatVND(Number(inv.totalAmount))}
-                  </span>
-                  <Badge
-                    variant={inv.status === 'paid' ? 'success' : 'warning'}
-                    size="sm"
-                  >
-                    {getInvoiceStatusConfig(inv.status).label}
-                  </Badge>
-                </div>
-              </div>
-            ))}
+    <>
+      <BaseModal
+        open={open}
+        onOpenChange={onOpenChange}
+        title={`Hồ sơ chi tiết: ${formatTicketCode(activeTicket.id)}`}
+        description={`Mã tiếp nhận bảo hành & sửa chữa hệ thống UIT CARE`}
+        size="2xl"
+        footerContent={
+          <div className="w-full flex items-center justify-between">
+            <span className="text-xs text-stone-500 font-mono">
+              Mã phiếu: <strong className="text-stone-800">{formatTicketCode(activeTicket.id)}</strong>
+              {activeTicket.device?.serialNumber && ` • S/N: ${activeTicket.device.serialNumber}`}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="min-h-[36px] px-5 font-semibold text-xs text-stone-700 hover:text-stone-900 border-sand-200"
+            >
+              Đóng
+            </Button>
           </div>
-        )}
-      </div>
-    </BaseModal>
+        }
+      >
+        <div className="space-y-6">
+          {/* Status Banner & Transition Control */}
+          <TicketStatusControl
+            key={`${activeTicket.id}_${activeTicket.status}`}
+            ticket={activeTicket}
+            onRefresh={refetchTicket}
+          />
+
+          {/* 3 Grid Info Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Customer */}
+            <Card className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+                <IconUser className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>Khách hàng</span>
+              </div>
+              <div className="text-xs space-y-1 text-stone-600">
+                <div className="font-semibold text-stone-900">
+                  {activeTicket.device?.customer?.fullName}
+                </div>
+                <div className="font-mono text-stone-700">
+                  {activeTicket.device?.customer?.phoneNumber}
+                </div>
+                <div>{activeTicket.device?.customer?.address || 'Chưa cập nhật địa chỉ'}</div>
+              </div>
+            </Card>
+
+            {/* Device */}
+            <Card className="p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+                  <IconLaptop className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>Thiết bị</span>
+                </div>
+                {activeTicket.device && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditDeviceOpen(true)}
+                    className="h-7 px-2 text-[11px] font-semibold text-amber-800 hover:bg-amber-100/60"
+                    leftIcon={<IconEdit className="w-3 h-3" />}
+                  >
+                    Sửa thiết bị
+                  </Button>
+                )}
+              </div>
+              <div className="text-xs space-y-1 text-stone-600">
+                <div className="font-semibold text-stone-900">
+                  {activeTicket.device?.deviceName}
+                </div>
+                <div className="font-mono text-stone-700">
+                  S/N: {activeTicket.device?.serialNumber || 'Chưa cập nhật'}
+                </div>
+                <div className="text-[11px] text-stone-500">
+                  Thương hiệu: {activeTicket.device?.brand || 'N/A'} | Loại: {activeTicket.device?.deviceType || 'N/A'}
+                </div>
+                {activeTicket.device?.isUnderWarranty && (
+                  <div className="text-[11px] text-emerald-700 font-medium pt-0.5">
+                    ✓ Bảo hành chính hãng: {activeTicket.device?.warrantyExpiryDate ? `Đến ${formatDate(activeTicket.device.warrantyExpiryDate)}` : 'Đang hiệu lực'}
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Personnel */}
+            <Card className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+                <IconWrench className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>Nhân sự phụ trách</span>
+              </div>
+              <div className="text-xs space-y-1 text-stone-600">
+                <div>
+                  <span className="text-stone-400">Tiếp nhận: </span>
+                  <span className="font-medium text-stone-800">
+                    {activeTicket.receptionist?.fullName || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-400">Kỹ thuật: </span>
+                  <span className="font-semibold text-amber-800">
+                    {activeTicket.technician?.fullName || 'Chưa phân công'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-stone-400">Ngày nhận: </span>
+                  <span>{formatDateTime(activeTicket.receivedAt)}</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Diagnosis & Technical Findings */}
+          <TechnicalDiagnosisSection
+            ticket={activeTicket}
+            onRefresh={refetchTicket}
+          />
+
+          {/* Audit Trail & Status History */}
+          <TicketAuditTimeline history={activeTicket.statusHistory} />
+
+          {/* Billing / Invoices */}
+          {activeTicket.invoices && activeTicket.invoices.length > 0 && (
+            <div className="p-4 rounded-2xl bg-white border border-stone-200 space-y-3">
+              <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-2">
+                <IconCreditCard className="w-4 h-4 text-stone-500" />
+                Lịch sử thanh toán & Hóa đơn liên quan
+              </h4>
+
+              {activeTicket.invoices.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="p-3 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <span className="font-mono font-bold text-stone-900">
+                      Hóa đơn #{inv.id}
+                    </span>
+                    <span className="text-stone-500 ml-2">
+                      Công kỹ thuật: {formatVND(Number(inv.laborFee))}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-sm text-stone-900">
+                      {formatVND(Number(inv.totalAmount))}
+                    </span>
+                    <Badge
+                      variant={inv.status === 'paid' ? 'success' : 'warning'}
+                      size="sm"
+                    >
+                      {getInvoiceStatusConfig(inv.status).label}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </BaseModal>
+
+      {/* Edit Device Modal */}
+      <EditDeviceModal
+        open={editDeviceOpen}
+        onOpenChange={setEditDeviceOpen}
+        device={activeTicket.device}
+        onSuccess={refetchTicket}
+      />
+    </>
   );
 };

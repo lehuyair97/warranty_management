@@ -22,20 +22,20 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
   allowedRoles,
 }) => {
   const router = useRouter();
-  const { isAuthenticated, isLoading, user } = useSnapshot(authState);
+  const { isAuthenticated, isLoading, isInitialized, user } = useSnapshot(authState);
 
   useEffect(() => {
     authActions.init();
   }, []);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && isInitialized && !isAuthenticated) {
       router.replace('/login');
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isInitialized, isAuthenticated, router]);
 
   // Loading skeleton screen while Valtio initializes token
-  if (isLoading) {
+  if (isLoading || !isInitialized) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-stone-50">
         <div className="flex flex-col items-center gap-4">

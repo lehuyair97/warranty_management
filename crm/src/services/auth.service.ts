@@ -19,6 +19,13 @@ export const authService = {
   },
 
   /**
+   * Refreshes access token and active user profile via HttpOnly refresh cookie.
+   */
+  async refresh(): Promise<LoginResponseData> {
+    return api.post<LoginResponseData>('/auth/refresh');
+  },
+
+  /**
    * Retrieves the current authenticated user's profile.
    */
   async getProfile(): Promise<UserProfile> {

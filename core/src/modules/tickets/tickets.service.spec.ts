@@ -10,6 +10,7 @@ import { EmployeeRole, TicketStatus, TicketType } from '@/common/constants';
 import { DeviceEntity } from '@/database/entities/device.entity';
 import { EmployeeEntity } from '@/database/entities/employee.entity';
 import { TicketEntity } from '@/database/entities/ticket.entity';
+import { TicketStatusHistoryEntity } from '@/database/entities/ticket-status-history.entity';
 import { TicketsService } from './tickets.service';
 
 describe('TicketsService', () => {
@@ -17,6 +18,7 @@ describe('TicketsService', () => {
   let mockTicketRepo: any;
   let mockDeviceRepo: any;
   let mockEmployeeRepo: any;
+  let mockStatusHistoryRepo: any;
   let mockDataSource: any;
 
   beforeEach(async () => {
@@ -52,6 +54,12 @@ describe('TicketsService', () => {
       findOne: jest.fn(),
     };
 
+    mockStatusHistoryRepo = {
+      save: jest.fn().mockResolvedValue({ id: 1 }),
+      create: jest.fn().mockReturnValue({ id: 1 }),
+      find: jest.fn().mockResolvedValue([]),
+    };
+
     mockDataSource = {
       query: jest.fn(),
     };
@@ -70,6 +78,10 @@ describe('TicketsService', () => {
         {
           provide: getRepositoryToken(EmployeeEntity),
           useValue: mockEmployeeRepo,
+        },
+        {
+          provide: getRepositoryToken(TicketStatusHistoryEntity),
+          useValue: mockStatusHistoryRepo,
         },
         {
           provide: DataSource,

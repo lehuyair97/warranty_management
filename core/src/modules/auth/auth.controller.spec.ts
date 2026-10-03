@@ -11,6 +11,7 @@ describe('AuthController', () => {
     login: jest.Mock;
     refreshTokens: jest.Mock;
     logout: jest.Mock;
+    logoutByToken: jest.Mock;
     getProfile: jest.Mock;
     updateProfile: jest.Mock;
   };
@@ -21,6 +22,7 @@ describe('AuthController', () => {
       login: jest.fn(),
       refreshTokens: jest.fn(),
       logout: jest.fn(),
+      logoutByToken: jest.fn(),
       getProfile: jest.fn(),
       updateProfile: jest.fn(),
     };
@@ -127,11 +129,17 @@ describe('AuthController', () => {
 
   describe('logout', () => {
     it('should revoke refresh token in database and clear cookie', async () => {
-      authService.logout.mockResolvedValue(undefined);
+      const mockRequest = {
+        cookies: {
+          refreshToken: 'existing_refresh_token',
+        },
+      } as unknown as FastifyRequest;
 
-      const res = await controller.logout(1, replyMock as FastifyReply);
+      authService.logoutByToken.mockResolvedValue({ success: true });
 
-      expect(authService.logout).toHaveBeenCalledWith(1);
+      const res = await controller.logout(mockRequest, replyMock as FastifyReply);
+
+      expect(authService.logoutByToken).toHaveBeenCalledWith('existing_refresh_token');
       expect(replyMock.clearCookie).toHaveBeenCalledWith('refreshToken', { path: '/api/auth' });
       expect(res).toEqual({ message: 'Logged out successfully' });
     });

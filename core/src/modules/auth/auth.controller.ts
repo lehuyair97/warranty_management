@@ -18,6 +18,24 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
+/**
+ * Pure helper extracting refresh token from fastify cookies or raw cookie header.
+ */
+function extractRefreshToken(request: FastifyRequest): string | undefined {
+  const cookieBag = request.cookies as Record<string, string> | undefined;
+  if (cookieBag && cookieBag['refreshToken']) {
+    return cookieBag['refreshToken'];
+  }
+  const rawCookie = request.headers.cookie;
+  if (rawCookie) {
+    const match = rawCookie.match(/(?:^|;\s*)refreshToken=([^;]+)/);
+    if (match) {
+      return decodeURIComponent(match[1]);
+    }
+  }
+  return undefined;
+}
+
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -59,8 +77,8 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    const refreshToken = (request.cookies as Record<string, string>)?.['refreshToken'];
-    const result = await this.authService.refreshTokens(refreshToken);
+    const refreshToken = extractRefreshToken(request);
+    const result = await this.authService.refreshTokens(refreshToken as string);
 
     // Rotate new refresh token into cookie
     reply.setCookie('refreshToken', result.refreshToken, {
@@ -77,15 +95,18 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Logout current user and invalidate refresh token' })
   async logout(
-    @CurrentUser('id') userId: number,
+    @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    await this.authService.logout(userId);
+    const refreshToken = extractRefreshToken(request);
+    if (refreshToken) {
+      await this.authService.logoutByToken(refreshToken);
+    }
 
     // Clear HttpOnly cookie
     reply.clearCookie('refreshToken', { path: '/api/auth' });

@@ -65,7 +65,7 @@ export class DevicesController {
   }
 
   @Patch(':id')
-  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.MANAGER)
+  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN, EmployeeRole.MANAGER)
   @ApiOperation({ summary: 'Update device information or warranty date' })
   async update(
     @Param('id', ParseIntPipe) id: number,

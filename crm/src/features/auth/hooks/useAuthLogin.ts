@@ -1,9 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSnapshot } from 'valtio';
 import { authService } from '@/services/auth.service';
-import { authActions } from '@/stores/auth.store';
+import { authActions, authState } from '@/stores/auth.store';
 import { uiActions } from '@/stores/ui.store';
 import { getErrorMessage } from '@/types';
 
@@ -13,10 +14,23 @@ import { getErrorMessage } from '@/types';
  */
 export function useAuthLogin() {
   const router = useRouter();
+  const { isAuthenticated, isLoading: isAuthLoading, isInitialized, user } = useSnapshot(authState);
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('123456');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthLoading && isInitialized && isAuthenticated && user) {
+      if (user.role === 'technician') {
+        router.replace('/technician');
+      } else if (user.role === 'receptionist') {
+        router.replace('/reception');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [isAuthLoading, isInitialized, isAuthenticated, user, router]);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

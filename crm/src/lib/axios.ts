@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { authActions, authState } from '@/stores/auth.store';
 import { uiActions } from '@/stores/ui.store';
-import { SingleSuccessResponse } from '@/types';
+import { SingleSuccessResponse, UserProfile } from '@/types';
 
 const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
@@ -104,12 +104,14 @@ axiosClient.interceptors.response.use(
 
       try {
         const refreshResponse = await refreshInstance.post<
-          SingleSuccessResponse<{ accessToken: string }>
+          SingleSuccessResponse<{ accessToken: string; user?: UserProfile }>
         >('/auth/refresh');
 
         const resData = refreshResponse.data;
         const newAccessToken =
           resData && resData.success ? resData.data.accessToken : undefined;
+        const newUser =
+          resData && resData.success ? resData.data.user : undefined;
 
         if (!newAccessToken) {
           throw new Error('Refresh token exchange returned no access token');
@@ -117,6 +119,9 @@ axiosClient.interceptors.response.use(
 
         // Update Valtio auth state & localStorage
         authActions.updateToken(newAccessToken);
+        if (newUser) {
+          authActions.updateUser(newUser);
+        }
 
         processQueue(null, newAccessToken);
 

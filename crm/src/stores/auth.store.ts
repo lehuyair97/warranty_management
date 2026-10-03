@@ -1,4 +1,5 @@
 import { proxy } from 'valtio';
+import { authService } from '@/services/auth.service';
 import { EmployeeRole, UserProfile } from '@/types';
 
 interface AuthState {
@@ -6,19 +7,21 @@ interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
 }
 
-const STORAGE_KEY_USER = 'uit_wm_user';
-const STORAGE_KEY_TOKEN = 'uit_wm_token';
+let initPromise: Promise<void> | null = null;
 
 /**
  * Valtio reactive proxy store for authentication state.
+ * In-memory only state management; session persistence is handled via HttpOnly Cookies.
  */
 export const authState = proxy<AuthState>({
   user: null,
   accessToken: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
+  isInitialized: false,
 });
 
 /**
@@ -26,79 +29,93 @@ export const authState = proxy<AuthState>({
  */
 export const authActions = {
   /**
-   * Initializes session from client storage on browser mount.
+   * Initializes session on browser mount.
+   * Performs silent token exchange with backend using HttpOnly cookie sent via HTTP headers.
    */
-  init() {
+  async init(): Promise<void> {
     if (typeof window === 'undefined') {
       return;
     }
 
-    try {
-      const storedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
-      const storedUser = localStorage.getItem(STORAGE_KEY_USER);
+    if (authState.isInitialized && !authState.isLoading) {
+      return;
+    }
 
-      if (storedToken && storedUser) {
-        authState.accessToken = storedToken;
-        authState.user = JSON.parse(storedUser);
-        authState.isAuthenticated = true;
+    if (initPromise) {
+      return initPromise;
+    }
+
+    initPromise = (async () => {
+      authState.isLoading = true;
+
+      try {
+        const refreshResult = await authService.refresh();
+        if (refreshResult && refreshResult.accessToken && refreshResult.user) {
+          authState.accessToken = refreshResult.accessToken;
+          authState.user = refreshResult.user;
+          authState.isAuthenticated = true;
+        } else {
+          authState.isAuthenticated = false;
+          authState.user = null;
+          authState.accessToken = null;
+        }
+      } catch {
+        // No active or valid HttpOnly refresh cookie present
+        authState.isAuthenticated = false;
+        authState.user = null;
+        authState.accessToken = null;
+      } finally {
+        authState.isLoading = false;
+        authState.isInitialized = true;
       }
-    } catch {
-      // Ignore corrupted localstorage
-      localStorage.removeItem(STORAGE_KEY_TOKEN);
-      localStorage.removeItem(STORAGE_KEY_USER);
+    })();
+
+    try {
+      await initPromise;
     } finally {
-      authState.isLoading = false;
+      initPromise = null;
     }
   },
 
   /**
-   * Saves authenticated user session and access token.
+   * Saves authenticated user session and in-memory access token.
    */
   login(user: UserProfile, token: string) {
     authState.user = user;
     authState.accessToken = token;
     authState.isAuthenticated = true;
     authState.isLoading = false;
-
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_TOKEN, token);
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    }
+    authState.isInitialized = true;
   },
 
   /**
-   * Updates only the access token following silent rotation.
+   * Updates only the access token in memory following silent rotation.
    */
   updateToken(token: string) {
     authState.accessToken = token;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_TOKEN, token);
-    }
   },
 
   /**
-   * Updates authenticated user profile details in state and storage.
+   * Updates authenticated user profile details in memory.
    */
   updateUser(user: UserProfile) {
     authState.user = user;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    }
   },
 
   /**
-   * Clears session upon logout.
+   * Clears session upon logout and invalidates backend HttpOnly refresh cookie.
    */
   logout() {
+    // Notify backend to clear HttpOnly cookie and database refresh token hash
+    authService.logout().catch(() => {
+      // Ignore network errors on logout
+    });
+
     authState.user = null;
     authState.accessToken = null;
     authState.isAuthenticated = false;
     authState.isLoading = false;
-
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY_TOKEN);
-      localStorage.removeItem(STORAGE_KEY_USER);
-    }
+    authState.isInitialized = true;
   },
 
   /**
@@ -111,3 +128,5 @@ export const authActions = {
     return roles.includes(authState.user.role);
   },
 };
+
+

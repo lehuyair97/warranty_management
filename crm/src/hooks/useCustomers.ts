@@ -35,9 +35,12 @@ export function useCreateDevice() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateDeviceDto) => customersService.createDevice(dto),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.devices.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tickets.all }),
+      ]);
     },
   });
 }

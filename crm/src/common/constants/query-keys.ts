@@ -66,11 +66,23 @@ export const reportKeys = {
   delayedTickets: (delayDays: number = 14) => [...reportKeys.all, 'delayed-tickets', delayDays] as const,
 };
 
+export const deviceKeys = {
+  all: ['devices'] as const,
+  lists: () => [...deviceKeys.all, 'list'] as const,
+  list: (params?: unknown) => [...deviceKeys.lists(), params] as const,
+  details: () => [...deviceKeys.all, 'detail'] as const,
+  detail: (id: number) => [...deviceKeys.details(), id] as const,
+  bySerial: (serial: string) => [...deviceKeys.all, 'serial', serial] as const,
+  warranty: (id: number) => [...deviceKeys.all, 'warranty', id] as const,
+  history: (id: number) => [...deviceKeys.all, 'history', id] as const,
+};
+
 /**
  * Consolidated Query Key registry for clean imports across the application.
  */
 export const queryKeys = {
   tickets: ticketKeys,
+  devices: deviceKeys,
   invoices: invoiceKeys,
   parts: partKeys,
   employees: employeeKeys,

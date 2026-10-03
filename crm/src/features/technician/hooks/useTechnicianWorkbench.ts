@@ -77,6 +77,7 @@ export function useTechnicianWorkbench() {
         ticketId: ticket.id,
         technicianId: user.id,
       });
+      await refetch();
       uiActions.addToast({
         type: 'success',
         title: 'Nhận xử lý phiếu thành công',
@@ -124,6 +125,7 @@ export function useTechnicianWorkbench() {
         estimatedCost: values.estimatedCost,
       });
 
+      await refetch();
       setDiagnosisModalOpen(false);
       uiActions.addToast({
         type: 'success',

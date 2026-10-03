@@ -108,8 +108,30 @@ export class AuthService {
   /**
    * Logs out employee by nullifying the stored refresh token hash.
    */
-  async logout(employeeId: number) {
-    await this.employeeRepo.update(employeeId, { refreshTokenHash: null });
+  async logout(employeeId?: number) {
+    if (employeeId) {
+      await this.employeeRepo.update(employeeId, { refreshTokenHash: null });
+    }
+    return { success: true, message: 'Logged out successfully' };
+  }
+
+  /**
+   * Invalidates refresh token in database by extracting subject from token.
+   */
+  async logoutByToken(refreshToken?: string) {
+    if (!refreshToken) {
+      return { success: true, message: 'Logged out successfully' };
+    }
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub: number }>(refreshToken, {
+        secret: this.configService.get<string>('auth.refreshSecret'),
+      });
+      if (payload?.sub) {
+        await this.employeeRepo.update(payload.sub, { refreshTokenHash: null });
+      }
+    } catch {
+      // Ignore token verification errors during logout
+    }
     return { success: true, message: 'Logged out successfully' };
   }
 
@@ -191,7 +213,7 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('auth.jwtSecret'),
-        expiresIn: this.configService.get<string>('auth.jwtExpiresIn', '15m'),
+        expiresIn: this.configService.get<string>('auth.jwtExpiresIn', '30m'),
       }),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('auth.refreshSecret'),

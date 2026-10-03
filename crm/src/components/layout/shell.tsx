@@ -11,24 +11,34 @@ import { cn } from '@/lib/utils';
 import { QueryProvider } from '@/lib/query-provider';
 import { authActions, authState } from '@/stores/auth.store';
 
+/**
+ * Pure helper checking whether current pathname is accessible without authentication.
+ */
+function checkIsPublicRoute(pathname: string): boolean {
+  return (
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname.startsWith('/tra-cuu')
+  );
+}
+
 export const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, isLoading } = useSnapshot(authState);
+  const { isAuthenticated, isLoading, isInitialized } = useSnapshot(authState);
 
   useEffect(() => {
     authActions.init();
   }, []);
 
-  const isPublicRoute =
-    pathname === '/' || pathname === '/login' || pathname.startsWith('/tra-cuu');
+  const isPublicRoute = checkIsPublicRoute(pathname);
   const isDashboardRoute = pathname === '/dashboard';
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isPublicRoute) {
+    if (!isLoading && isInitialized && !isAuthenticated && !isPublicRoute) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, isPublicRoute, router]);
+  }, [isLoading, isInitialized, isAuthenticated, isPublicRoute, router]);
 
   if (isPublicRoute) {
     return (
@@ -42,7 +52,7 @@ export const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     );
   }
 
-  if (isLoading) {
+  if (isLoading || !isInitialized) {
     return (
       <div className="min-h-screen bg-sand-50 flex flex-col items-center justify-center gap-3">
         <IconRefresh className="w-8 h-8 text-bronze-600 animate-spin" />
