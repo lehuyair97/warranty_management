@@ -25,9 +25,9 @@
 - **Bảng**: `dbo.invoice_items`
 - **Sự kiện**: `AFTER INSERT, UPDATE, DELETE`
 - **Logic thực thi**:
-  1. Khi một linh kiện được thêm vào hóa đơn (`INSERT`), trigger trừ số lượng tương ứng trong `parts.stock_quantity`.
+  1. Khi một linh kiện được thêm vào hóa đơn (`INSERT` vào `invoice_items`), trigger trừ số lượng tương ứng trong `parts.stock_quantity`.
   2. Khi sửa số lượng (`UPDATE`), trigger tính toán độ chênh lệch (`Delta = new_qty - old_qty`) để điều chỉnh tồn kho.
-  3. Khi xóa khỏi hóa đơn (`DELETE`), trigger tự động hoàn trả số lượng linh kiện về kho.
+  3. Khi gỡ bỏ linh kiện khỏi hóa đơn (`DELETE` dòng chi tiết trong `invoice_items`), trigger tự động hoàn trả số lượng linh kiện về kho.
   4. Nếu tồn kho sau điều chỉnh bị âm (`stock_quantity < 0`), giao dịch lập tức bị `ROLLBACK` và ném mã lỗi `50001`.
 
 ```sql

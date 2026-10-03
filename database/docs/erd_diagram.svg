@@ -412,8 +412,8 @@
     <rect width="270" height="290" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
     <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#059669" rx="10 10 0 0"/>
     <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">invoice_items</text>
-    <rect x="170" y="10" width="86" height="20" rx="4" fill="#047857"/>
-    <text x="213" y="24" text-anchor="middle" fill="#d1fae5" font-size="10" font-weight="600">Chi tiết xuất</text>
+    <rect x="150" y="10" width="106" height="20" rx="4" fill="#047857"/>
+    <text x="203" y="24" text-anchor="middle" fill="#d1fae5" font-size="10" font-weight="600">Chi tiết linh kiện</text>
 
     <!-- Subheader -->
     <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
