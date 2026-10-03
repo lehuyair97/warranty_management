@@ -268,3 +268,24 @@ Ghi nhận đầy đủ vết biến động trạng thái phục vụ đối so
 | `technician_id` | `INT` | `FOREIGN KEY (employees) NULL` | Nhân sự thực hiện chuyển đổi trạng thái. |
 | `note` | `NVARCHAR(500)` | `NULL` | Ghi chú lý do chuyển trạng thái. |
 | `created_at` | `DATETIME` | `NOT NULL DEFAULT GETDATE()` | Dấu mốc thời gian chính xác của sự kiện. |
+
+---
+
+## 3. Ma Trận Ánh Xạ: Thao Tác UI/Dashboard ⟷ Database Objects (Triggers, Cursors, Procedures, Functions)
+
+Bảng tổng hợp đối chiếu trực tiếp giữa **từng nút bấm / hành động nghiệp vụ trên giao diện Web Dashboard** với **các đối tượng CSDL tương ứng được kích hoạt ngầm**:
+
+| # | Phân Hệ / Màn Hình | Thao Tác Cụ Thể Trên Giao Diện | Stored Procedure Kích Hoạt | Database Trigger Kích Hoạt | UDF / Cursor Sử Dụng | Mục Đích & Kiểm Soát Nghiệp Vụ |
+|:---:|:---|:---|:---|:---|:---|:---|
+| **1** | **Tiếp Nhận (`/reception`)** | Điền thông tin khách & máy $\rightarrow$ Bấm **"Tạo phiếu tiếp nhận"** | `dbo.sp_receive_device` | `trg_tickets_audit_history` | `dbo.fn_is_device_under_warranty` | Tự động tạo khách/máy, đánh giá hạn bảo hành để phân loại `warranty` hay `repair`, ghi vết `received` vào lịch sử. |
+| **2** | **Bàn Làm Việc KTV (`/technician`)** | KTV nhận máy $\rightarrow$ Chọn trạng thái `inspecting` / `repairing` $\rightarrow$ Bấm **"Cập nhật tiến độ"** | `dbo.sp_process_ticket` | `trg_tickets_workflow_guard`<br/>`trg_tickets_audit_history` | — | Kiểm tra bắt buộc có `technician_id` (Lỗi `50003`), tự động điền `completed_at` khi xong, ghi vết biến động trạng thái. |
+| **3** | **Bàn Làm Việc KTV (`/technician`)** | KTV mở modal chẩn đoán $\rightarrow$ Chọn linh kiện & số lượng $\rightarrow$ Bấm **"Thêm vào báo giá"** | `dbo.sp_add_invoice_part` | `trg_invoice_items_stock`<br/>`trg_invoices_total_amount`<br/>`trg_invoice_items_freeze_paid` | `dbo.fn_calculate_parts_total` | Capture đơn giá kho tại thời điểm xuất; tự động trừ tồn kho (chặn âm kho lỗi `50001`); tự tính lại tổng tiền HĐ. |
+| **4** | **Bàn Làm Việc KTV (`/technician`)** | KTV bấm nút **"Xóa linh kiện"** (Thùng rác) khỏi danh sách báo giá | `DELETE FROM invoice_items` | `trg_invoice_items_stock`<br/>`trg_invoices_total_amount`<br/>`trg_invoice_items_freeze_paid` | `dbo.fn_calculate_parts_total` | Tự động hoàn trả số lượng linh kiện về kho `parts.stock_quantity`; tự động giảm tổng tiền hóa đơn; cấm xóa nếu đã thanh toán (`50035`). |
+| **5** | **Bàn Làm Việc KTV (`/technician`)** | KTV sửa xong $\rightarrow$ Đổi trạng thái sang `completed` $\rightarrow$ Bấm **"Hoàn tất"** | `dbo.sp_process_ticket` | `trg_tickets_workflow_guard`<br/>`trg_tickets_audit_history` | — | Khóa tiến trình sửa; tự động ghi nhận thời gian `completed_at = GETDATE()`; ghi vết kiểm toán. |
+| **6** | **Thu Ngân (`/cashier`)** | Mở hóa đơn chưa thu tiền $\rightarrow$ Chọn hình thức (Tiền mặt/Chuyển khoản) $\rightarrow$ Bấm **"Xác nhận thanh toán"** | `dbo.sp_checkout_invoice` | `trg_invoices_freeze_paid_amounts`<br/>`trg_invoice_items_freeze_paid` | — | Đổi trạng thái hóa đơn sang `paid`; kích hoạt cơ chế khóa tài chính 2 cấp (cấm sửa tiền `50036`, cấm sửa dòng chi tiết `50035`). |
+| **7** | **Thu Ngân (`/cashier`)** | Trực tiếp/vô tình gửi lệnh chỉnh sửa tiền hoặc thêm linh kiện vào HĐ đã thanh toán | Bất kỳ lệnh `UPDATE invoices` hoặc `INSERT/UPDATE/DELETE invoice_items` | `trg_invoices_freeze_paid_amounts`<br/>`trg_invoice_items_freeze_paid` | — | **Financial Immutability**: Tự động chặn đứng và `ROLLBACK`, ném lỗi `50035` hoặc `50036` ngăn chặn gian lận số liệu. |
+| **8** | **Dashboard Giám Đốc (`/dashboard`)** | Mở trang Dashboard hoặc bấm **"Làm mới"** $\rightarrow$ Xem bảng "Phiếu quá hạn SLA (>14 ngày)" | `dbo.sp_alert_delayed_tickets` | — | **CURSOR `cur_delayed_tickets`** | Con trỏ duyệt tuần tự từng phiếu đang mở quá hạn SLA (>14 ngày), trả về danh sách cảnh báo màu đỏ chi tiết. |
+| **9** | **Dashboard Giám Đốc (`/dashboard`)** | Bấm nút **"Đối soát hóa đơn & Doanh thu"** $\rightarrow$ Bấm **"Bắt đầu quét đối soát"** | `dbo.sp_audit_invoices` | — | **CURSOR `cur_invoices`**<br/>`dbo.fn_calculate_parts_total` | Con trỏ quét 100% hóa đơn, so khớp tổng tiền với tổng chi tiết linh kiện; tự động sửa số liệu nếu chọn `auto_fix = 1`. |
+| **10** | **Tra Cứu Khách Hàng (`/tra-cuu`)** | Khách nhập Số điện thoại hoặc Serial/IMEI $\rightarrow$ Bấm **"Tra cứu bảo hành"** | Query lịch sử thiết bị | — | `dbo.fn_get_device_repair_history`<br/>`dbo.fn_is_device_under_warranty` | Table-Valued Function trả về toàn bộ tiến trình lịch sử các lần sửa máy; Scalar Function hiển thị huy hiệu bảo hành. |
+
+> Xem tài liệu phân tích kỹ thuật chuyên sâu tại: [**`04_dashboard_actions_and_sql_execution.md`**](./04_dashboard_actions_and_sql_execution.md).

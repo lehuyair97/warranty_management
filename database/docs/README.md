@@ -28,6 +28,11 @@ Tài liệu chi tiết được chia thành 3 chuyên đề kỹ thuật chuyên
 - Thủ tục cảnh báo vi phạm thời gian cam kết dịch vụ SLA (`sp_alert_delayed_tickets`).
 - Danh mục **3 Hàm người dùng (Functions)**: Tính tổng tiền linh kiện, Kiểm tra hạn bảo hành, Lịch sử sửa chữa thiết bị.
 
+### 4. [04. Sổ Tay Kỹ Thuật: Ánh Xạ Thao Tác Dashboard Đến Database Engine](./04_dashboard_actions_and_sql_execution.md)
+- Ma trận ánh xạ chi tiết **10 thao tác nghiệp vụ trên giao diện Web Dashboard** (Tiếp nhận, Chẩn đoán KTV, Xuất/Hủy linh kiện, Thanh toán, Đối soát Cursor, Cảnh báo SLA Cursor).
+- Sơ đồ tuần tự **Mermaid Sequence Diagram** toàn diện từ click chuột $\rightarrow$ REST API $\rightarrow$ Database Engine.
+- Bảng đối chiếu phản hồi mã lỗi `50001` - `50036` tương ứng với thông báo Toast trên UI.
+
 ---
 
 ## ⚡ Hướng Dẫn Chạy & Khởi Tạo Database Bằng Docker
