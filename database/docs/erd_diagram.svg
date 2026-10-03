@@ -1,0 +1,593 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 930" width="100%" height="100%" style="background-color: #0b1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Soft Depth Shadow for Cards -->
+    <filter id="card-shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+
+    <!-- Arrow Markers -->
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#f59e0b" />
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#c084fc" />
+    </marker>
+    <marker id="arrow-emerald" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#10b981" />
+    </marker>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#2dd4bf" />
+    </marker>
+    <marker id="arrow-sky" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#38bdf8" />
+    </marker>
+    <marker id="arrow-indigo" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#818cf8" />
+    </marker>
+  </defs>
+
+  <!-- ============================================================== -->
+  <!-- 1. TOP HEADER BANNER (PERFECTLY CENTERED: x=60, w=1320)       -->
+  <!-- ============================================================== -->
+  <g transform="translate(60, 20)">
+    <rect width="1320" height="56" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <circle cx="28" cy="28" r="10" fill="#0284c7" />
+    <path d="M 24 28 L 27 31 L 33 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="48" y="34" fill="#f8fafc" font-size="16" font-weight="700" letter-spacing="0.5">UIT CARE — SƠ ĐỒ THỰC THỂ QUAN HỆ CSDL (RELATIONAL ERD)</text>
+    <text x="1295" y="34" text-anchor="end" fill="#94a3b8" font-size="13" font-weight="600">8 Tables • Microsoft SQL Server 2022 • Strict Financial Immutability</text>
+  </g>
+
+  <!-- ============================================================== -->
+  <!-- 2. RELATIONSHIP LINES (ORTHOGONAL ROUTING - ZERO CROSSINGS)    -->
+  <!-- ============================================================== -->
+  <g stroke-width="2" fill="none">
+    
+    <!-- (1) customers -> devices: Direct Horizontal (y: 220) -->
+    <path d="M 330 220 L 410 220" stroke="#f59e0b" marker-end="url(#arrow-amber)" />
+    <rect x="353" y="210" width="34" height="20" rx="4" fill="#0b1120" stroke="#f59e0b" stroke-width="1"/>
+    <text x="370" y="224" fill="#f59e0b" font-size="10" font-weight="700" text-anchor="middle">1:N</text>
+
+    <!-- (2) devices -> tickets: Direct Horizontal (y: 220) -->
+    <path d="M 680 220 L 760 220" stroke="#f59e0b" marker-end="url(#arrow-amber)" />
+    <rect x="703" y="210" width="34" height="20" rx="4" fill="#0b1120" stroke="#f59e0b" stroke-width="1"/>
+    <text x="720" y="224" fill="#f59e0b" font-size="10" font-weight="700" text-anchor="middle">1:N</text>
+
+    <!-- (3) employees -> tickets: Direct Horizontal (y: 220, points LEFT) -->
+    <path d="M 1110 220 L 1030 220" stroke="#c084fc" stroke-dasharray="5 3" marker-end="url(#arrow-purple)" />
+    <rect x="1042" y="209" width="56" height="22" rx="4" fill="#0b1120" stroke="#c084fc" stroke-width="1"/>
+    <text x="1070" y="224" fill="#c084fc" font-size="9.5" font-weight="700" text-anchor="middle">1:N (staff)</text>
+
+    <!-- (4) tickets -> invoices: Direct Vertical (x: 895, y: 475 to 545) -->
+    <path d="M 895 475 L 895 545" stroke="#10b981" marker-end="url(#arrow-emerald)" />
+    <rect x="861" y="499" width="68" height="22" rx="4" fill="#0b1120" stroke="#10b981" stroke-width="1"/>
+    <text x="895" y="514" fill="#10b981" font-size="10" font-weight="700" text-anchor="middle">bill (1:N)</text>
+
+    <!-- (5) parts -> invoice_items: Direct Horizontal (y: 660) -->
+    <path d="M 330 660 L 410 660" stroke="#2dd4bf" marker-end="url(#arrow-teal)" />
+    <rect x="353" y="650" width="34" height="20" rx="4" fill="#0b1120" stroke="#2dd4bf" stroke-width="1"/>
+    <text x="370" y="664" fill="#2dd4bf" font-size="10" font-weight="700" text-anchor="middle">1:N</text>
+
+    <!-- (6) invoices -> invoice_items: Direct Horizontal (y: 660, points LEFT) -->
+    <path d="M 760 660 L 680 660" stroke="#10b981" marker-end="url(#arrow-emerald)" />
+    <rect x="685" y="649" width="70" height="22" rx="4" fill="#0b1120" stroke="#10b981" stroke-width="1"/>
+    <text x="720" y="664" fill="#10b981" font-size="10" font-weight="700" text-anchor="middle">items (1:N)</text>
+
+    <!-- (7) employees -> ticket_status_history: Direct Vertical (x: 1245, y: 475 to 545) -->
+    <path d="M 1245 475 L 1245 545" stroke="#38bdf8" marker-end="url(#arrow-sky)" />
+    <rect x="1211" y="499" width="68" height="22" rx="4" fill="#0b1120" stroke="#38bdf8" stroke-width="1"/>
+    <text x="1245" y="514" fill="#38bdf8" font-size="10" font-weight="700" text-anchor="middle">logs (1:N)</text>
+
+    <!-- (8) tickets -> ticket_status_history: Step Route in Open Column Gap -->
+    <path d="M 1030 350 L 1070 350 L 1070 590 L 1110 590" stroke="#818cf8" marker-end="url(#arrow-indigo)" />
+    <rect x="1033" y="460" width="74" height="22" rx="4" fill="#0b1120" stroke="#818cf8" stroke-width="1"/>
+    <text x="1070" y="475" fill="#818cf8" font-size="9.5" font-weight="700" text-anchor="middle">tracks (1:N)</text>
+
+  </g>
+
+  <!-- ============================================================== -->
+  <!-- 3. ROW 1: CORE INTAKE & PROCESSING (y: 105, h: 370, w: 270)    -->
+  <!-- ============================================================== -->
+
+  <!-- (1.1) CUSTOMERS TABLE (Col 1, Row 1: x=60) -->
+  <g transform="translate(60, 105)" filter="url(#card-shadow)">
+    <rect width="270" height="370" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#0284c7" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">customers</text>
+    <rect x="180" y="10" width="76" height="20" rx="4" fill="#0369a1"/>
+    <text x="218" y="24" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="600">Khách hàng</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 78)" font-size="11" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 24)">
+        <text fill="#cbd5e1">   full_name</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(100)</text>
+      </g>
+      <g transform="translate(0, 48)">
+        <text><tspan fill="#38bdf8" font-weight="bold">IX </tspan><tspan fill="#f1f5f9">phone_number</tspan></text>
+        <text x="238" text-anchor="end" fill="#38bdf8">VARCHAR(15)</text>
+      </g>
+      <g transform="translate(0, 72)">
+        <text fill="#cbd5e1">   email</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(100)</text>
+      </g>
+      <g transform="translate(0, 96)">
+        <text fill="#cbd5e1">   address</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(200)</text>
+      </g>
+      <g transform="translate(0, 120)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+      <g transform="translate(0, 144)">
+        <text fill="#cbd5e1">   updated_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Meta / Constraint Details Box -->
+    <g transform="translate(14, 255)">
+      <rect width="242" height="98" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="22" fill="#38bdf8" font-size="10.5" font-weight="700">INDEX &amp; TRA CỨU:</text>
+      <text x="12" y="42" fill="#94a3b8" font-size="10">• Non-Clustered Index: phone_number</text>
+      <text x="12" y="60" fill="#94a3b8" font-size="10">• Tìm kiếm khách hàng tức thì qua SĐT</text>
+      <text x="12" y="78" fill="#94a3b8" font-size="10">• Quan hệ 1:N với bảng devices</text>
+    </g>
+  </g>
+
+  <!-- (1.2) DEVICES TABLE (Col 2, Row 1: x=410) -->
+  <g transform="translate(410, 105)" filter="url(#card-shadow)">
+    <rect width="270" height="370" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#0284c7" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">devices</text>
+    <rect x="190" y="10" width="66" height="20" rx="4" fill="#0369a1"/>
+    <text x="223" y="24" text-anchor="middle" fill="#e0f2fe" font-size="10" font-weight="600">Thiết bị</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 76)" font-size="10.5" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 21)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">customer_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 42)">
+        <text fill="#cbd5e1">   device_name</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(100)</text>
+      </g>
+      <g transform="translate(0, 63)">
+        <text fill="#cbd5e1">   device_type</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(50)</text>
+      </g>
+      <g transform="translate(0, 84)">
+        <text fill="#cbd5e1">   brand</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(50)</text>
+      </g>
+      <g transform="translate(0, 105)">
+        <text><tspan fill="#38bdf8" font-weight="bold">UQ </tspan><tspan fill="#f1f5f9">serial_number</tspan></text>
+        <text x="238" text-anchor="end" fill="#38bdf8">VARCHAR(50)</text>
+      </g>
+      <g transform="translate(0, 126)">
+        <text fill="#cbd5e1">   is_under_warranty</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">BIT</text>
+      </g>
+      <g transform="translate(0, 147)">
+        <text fill="#cbd5e1">   warranty_expiry_date</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATE</text>
+      </g>
+      <g transform="translate(0, 168)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+      <g transform="translate(0, 189)">
+        <text fill="#cbd5e1">   updated_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Meta Details Box -->
+    <g transform="translate(14, 290)">
+      <rect width="242" height="64" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="20" fill="#38bdf8" font-size="10.5" font-weight="700">RÀNG BUỘC PHẦN CỨNG:</text>
+      <text x="12" y="38" fill="#94a3b8" font-size="10">• Unique: serial_number định danh duy nhất</text>
+      <text x="12" y="52" fill="#94a3b8" font-size="10">• Đánh giá bảo hành tự động tại khâu nhận</text>
+    </g>
+  </g>
+
+  <!-- (1.3) TICKETS TABLE (Col 3, Row 1: x=760 - CENTRAL HUB) -->
+  <g transform="translate(760, 105)" filter="url(#card-shadow)">
+    <rect width="270" height="370" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#d97706" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">tickets</text>
+    <rect x="175" y="10" width="80" height="20" rx="4" fill="#b45309"/>
+    <text x="215" y="24" text-anchor="middle" fill="#fef3c7" font-size="10" font-weight="700">Core Hub</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List (13 fields) -->
+    <g transform="translate(16, 75)" font-size="10" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="bold">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 19)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">device_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 38)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">receptionist_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 57)">
+        <text><tspan fill="#38bdf8" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">technician_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#38bdf8">INT (null)</text>
+      </g>
+      <g transform="translate(0, 76)">
+        <text><tspan fill="#f43f5e" font-weight="bold">CK </tspan><tspan fill="#cbd5e1">ticket_type</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(20)</text>
+      </g>
+      <g transform="translate(0, 95)">
+        <text fill="#cbd5e1">   issue_description</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR</text>
+      </g>
+      <g transform="translate(0, 114)">
+        <text fill="#cbd5e1">   initial_condition</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR</text>
+      </g>
+      <g transform="translate(0, 133)">
+        <text fill="#cbd5e1">   received_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+      <g transform="translate(0, 152)">
+        <text fill="#cbd5e1">   fault_cause</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR</text>
+      </g>
+      <g transform="translate(0, 171)">
+        <text fill="#cbd5e1">   repair_solution</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR</text>
+      </g>
+      <g transform="translate(0, 190)">
+        <text><tspan fill="#f43f5e" font-weight="bold">CK </tspan><tspan fill="#fbbf24" font-weight="bold">status</tspan></text>
+        <text x="238" text-anchor="end" fill="#fbbf24">VARCHAR(30)</text>
+      </g>
+      <g transform="translate(0, 209)">
+        <text fill="#cbd5e1">   completed_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+      <g transform="translate(0, 228)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Trigger Indicator Box -->
+    <g transform="translate(14, 322)">
+      <rect width="242" height="36" rx="6" fill="#0f172a" stroke="#d97706" stroke-width="1"/>
+      <text x="12" y="15" fill="#fbbf24" font-size="10" font-weight="700">TRIGGER TỰ ĐỘNG AUDIT:</text>
+      <text x="12" y="28" fill="#94a3b8" font-size="9">Ghi log trạng thái sang ticket_status_history</text>
+    </g>
+  </g>
+
+  <!-- (1.4) EMPLOYEES TABLE (Col 4, Row 1: x=1110) -->
+  <g transform="translate(1110, 105)" filter="url(#card-shadow)">
+    <rect width="270" height="370" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#7c3aed" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">employees</text>
+    <rect x="170" y="10" width="86" height="20" rx="4" fill="#6d28d9"/>
+    <text x="213" y="24" text-anchor="middle" fill="#ede9fe" font-size="10" font-weight="600">Nhân viên / TK</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 76)" font-size="10.5" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 21)">
+        <text><tspan fill="#38bdf8" font-weight="bold">UQ </tspan><tspan fill="#f1f5f9">username</tspan></text>
+        <text x="238" text-anchor="end" fill="#38bdf8">NVARCHAR(50)</text>
+      </g>
+      <g transform="translate(0, 42)">
+        <text fill="#cbd5e1">   password_hash</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(255)</text>
+      </g>
+      <g transform="translate(0, 63)">
+        <text fill="#cbd5e1">   refresh_token_hash</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(255)</text>
+      </g>
+      <g transform="translate(0, 84)">
+        <text fill="#cbd5e1">   full_name</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(100)</text>
+      </g>
+      <g transform="translate(0, 105)">
+        <text><tspan fill="#f43f5e" font-weight="bold">CK </tspan><tspan fill="#c084fc" font-weight="bold">role</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">VARCHAR(20)</text>
+      </g>
+      <g transform="translate(0, 126)">
+        <text fill="#cbd5e1">   phone_number</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(15)</text>
+      </g>
+      <g transform="translate(0, 147)">
+        <text fill="#cbd5e1">   is_active</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">BIT DEFAULT 1</text>
+      </g>
+      <g transform="translate(0, 168)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Meta Details Box -->
+    <g transform="translate(14, 270)">
+      <rect width="242" height="84" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="20" fill="#c084fc" font-size="10.5" font-weight="700">PHÂN QUYỀN RBAC (ROLES):</text>
+      <text x="12" y="38" fill="#94a3b8" font-size="10">• admin: Quản trị toàn hệ thống</text>
+      <text x="12" y="54" fill="#94a3b8" font-size="10">• receptionist: Tiếp nhận phiếu &amp; trả máy</text>
+      <text x="12" y="70" fill="#94a3b8" font-size="10">• technician: Sửa chữa &amp; xuất linh kiện</text>
+    </g>
+  </g>
+
+  <!-- ============================================================== -->
+  <!-- 4. ROW 2: INVENTORY, BILLING & AUDIT (y: 545, h: 290, w: 270)  -->
+  <!-- ============================================================== -->
+
+  <!-- (2.1) PARTS TABLE (Col 1, Row 2: x=60) -->
+  <g transform="translate(60, 545)" filter="url(#card-shadow)">
+    <rect width="270" height="290" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#0f766e" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">parts</text>
+    <rect x="170" y="10" width="86" height="20" rx="4" fill="#115e59"/>
+    <text x="213" y="24" text-anchor="middle" fill="#ccfbf1" font-size="10" font-weight="600">Kho linh kiện</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 76)" font-size="10.5" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 20)">
+        <text fill="#cbd5e1">   part_name</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(100)</text>
+      </g>
+      <g transform="translate(0, 40)">
+        <text fill="#cbd5e1">   unit</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(20)</text>
+      </g>
+      <g transform="translate(0, 60)">
+        <text fill="#cbd5e1">   price</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DECIMAL(18,2)</text>
+      </g>
+      <g transform="translate(0, 80)">
+        <text><tspan fill="#f43f5e" font-weight="bold">CK </tspan><tspan fill="#2dd4bf" font-weight="bold">stock_quantity</tspan></text>
+        <text x="238" text-anchor="end" fill="#2dd4bf">INT (>=0)</text>
+      </g>
+      <g transform="translate(0, 100)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+      <g transform="translate(0, 120)">
+        <text fill="#cbd5e1">   updated_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Constraint Box -->
+    <g transform="translate(14, 222)">
+      <rect width="242" height="54" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="19" fill="#2dd4bf" font-size="10.5" font-weight="700">KIỂM SOÁT TỒN KHO TỨC THỜI:</text>
+      <text x="12" y="36" fill="#94a3b8" font-size="10">• Check: stock_quantity >= 0 (cấm âm kho)</text>
+      <text x="12" y="48" fill="#94a3b8" font-size="10">• Trừ kho nguyên tử qua Stored Procedure</text>
+    </g>
+  </g>
+
+  <!-- (2.2) INVOICE_ITEMS TABLE (Col 2, Row 2: x=410) -->
+  <g transform="translate(410, 545)" filter="url(#card-shadow)">
+    <rect width="270" height="290" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#059669" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">invoice_items</text>
+    <rect x="170" y="10" width="86" height="20" rx="4" fill="#047857"/>
+    <text x="213" y="24" text-anchor="middle" fill="#d1fae5" font-size="10" font-weight="600">Chi tiết xuất</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 76)" font-size="10.5" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 20)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">invoice_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 40)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">part_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 60)">
+        <text><tspan fill="#f43f5e" font-weight="bold">CK </tspan><tspan fill="#cbd5e1">quantity</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT (>0)</text>
+      </g>
+      <g transform="translate(0, 80)">
+        <text fill="#cbd5e1">   unit_price</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DECIMAL(18,2)</text>
+      </g>
+      <g transform="translate(0, 100)">
+        <text><tspan fill="#34d399" font-weight="bold">CP </tspan><tspan fill="#4ade80" font-weight="bold">total_price</tspan></text>
+        <text x="238" text-anchor="end" fill="#4ade80">PERSISTED</text>
+      </g>
+      <g transform="translate(0, 120)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Computed Column Box -->
+    <g transform="translate(14, 222)">
+      <rect width="242" height="54" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="19" fill="#4ade80" font-size="10.5" font-weight="700">COMPUTED PERSISTED COLUMN:</text>
+      <text x="12" y="36" fill="#94a3b8" font-size="10">• total_price AS (quantity * unit_price)</text>
+      <text x="12" y="48" fill="#94a3b8" font-size="10">• Lưu vật lý, tối ưu tốc độ kết xuất báo cáo</text>
+    </g>
+  </g>
+
+  <!-- (2.3) INVOICES TABLE (Col 3, Row 2: x=760) -->
+  <g transform="translate(760, 545)" filter="url(#card-shadow)">
+    <rect width="270" height="290" rx="10" fill="#1e293b" stroke="#10b981" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#059669" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">invoices</text>
+    <rect x="170" y="10" width="86" height="20" rx="4" fill="#047857"/>
+    <text x="213" y="24" text-anchor="middle" fill="#d1fae5" font-size="10" font-weight="600">Hóa đơn DV</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 75)" font-size="10" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 18)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">ticket_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 36)">
+        <text><tspan fill="#f43f5e" font-weight="bold">CK </tspan><tspan fill="#4ade80" font-weight="bold">status</tspan></text>
+        <text x="238" text-anchor="end" fill="#4ade80">('unpaid','paid')</text>
+      </g>
+      <g transform="translate(0, 54)">
+        <text fill="#cbd5e1">   labor_fee</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DECIMAL(18,2)</text>
+      </g>
+      <g transform="translate(0, 72)">
+        <text fill="#cbd5e1">   discount_amount</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DECIMAL</text>
+      </g>
+      <g transform="translate(0, 90)">
+        <text><tspan fill="#fbbf24" font-weight="bold">   total_amount</tspan></text>
+        <text x="238" text-anchor="end" fill="#fbbf24">DECIMAL(18,2)</text>
+      </g>
+      <g transform="translate(0, 108)">
+        <text fill="#cbd5e1">   payment_method</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(30)</text>
+      </g>
+      <g transform="translate(0, 126)">
+        <text fill="#cbd5e1">   paid_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+      <g transform="translate(0, 144)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Financial Immutability Box -->
+    <g transform="translate(14, 230)">
+      <rect width="242" height="46" rx="6" fill="#0f172a" stroke="#10b981" stroke-width="1"/>
+      <text x="12" y="18" fill="#4ade80" font-size="10" font-weight="700">FINANCIAL IMMUTABILITY:</text>
+      <text x="12" y="34" fill="#94a3b8" font-size="9.5">Trigger khóa cứng hóa đơn khi status = 'paid'</text>
+    </g>
+  </g>
+
+  <!-- (2.4) TICKET_STATUS_HISTORY TABLE (Col 4, Row 2: x=1110) -->
+  <g transform="translate(1110, 545)" filter="url(#card-shadow)">
+    <rect width="270" height="290" rx="10" fill="#1e293b" stroke="#6366f1" stroke-width="1.5"/>
+    <path d="M 0 0 L 270 0 L 270 40 L 0 40 Z" fill="#4f46e5" rx="10 10 0 0"/>
+    <text x="16" y="25" fill="#ffffff" font-size="13" font-weight="700">ticket_status_history</text>
+    <rect x="190" y="10" width="66" height="20" rx="4" fill="#4338ca"/>
+    <text x="223" y="24" text-anchor="middle" fill="#e0e7ff" font-size="10" font-weight="600">Audit Log</text>
+
+    <!-- Subheader -->
+    <rect y="40" width="270" height="22" fill="#0f172a" fill-opacity="0.6"/>
+    <text x="16" y="55" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">KEY   FIELD NAME</text>
+    <text x="254" y="55" text-anchor="end" fill="#64748b" font-size="9" font-weight="700" letter-spacing="0.5">DATA TYPE</text>
+
+    <!-- Fields List -->
+    <g transform="translate(16, 76)" font-size="10.5" font-family="'SF Mono', Monaco, Consolas, monospace">
+      <g transform="translate(0, 0)">
+        <text><tspan fill="#f59e0b" font-weight="bold">PK </tspan><tspan fill="#f1f5f9" font-weight="600">id</tspan></text>
+        <text x="238" text-anchor="end" fill="#94a3b8">INT IDENTITY</text>
+      </g>
+      <g transform="translate(0, 20)">
+        <text><tspan fill="#c084fc" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">ticket_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#c084fc">INT</text>
+      </g>
+      <g transform="translate(0, 40)">
+        <text fill="#cbd5e1">   old_status</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(30)</text>
+      </g>
+      <g transform="translate(0, 60)">
+        <text fill="#cbd5e1">   new_status</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">VARCHAR(30)</text>
+      </g>
+      <g transform="translate(0, 80)">
+        <text><tspan fill="#38bdf8" font-weight="bold">FK </tspan><tspan fill="#f1f5f9">technician_id</tspan></text>
+        <text x="238" text-anchor="end" fill="#38bdf8">INT</text>
+      </g>
+      <g transform="translate(0, 100)">
+        <text fill="#cbd5e1">   note</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">NVARCHAR(500)</text>
+      </g>
+      <g transform="translate(0, 120)">
+        <text fill="#cbd5e1">   created_at</text>
+        <text x="238" text-anchor="end" fill="#94a3b8">DATETIME</text>
+      </g>
+    </g>
+
+    <!-- Audit Security Box -->
+    <g transform="translate(14, 222)">
+      <rect width="242" height="54" rx="6" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+      <text x="12" y="19" fill="#818cf8" font-size="10.5" font-weight="700">APPEND-ONLY AUDIT TRAIL:</text>
+      <text x="12" y="36" fill="#94a3b8" font-size="10">• Cấm UPDATE / DELETE lịch sử thay đổi</text>
+      <text x="12" y="48" fill="#94a3b8" font-size="10">• Minh bạch người thao tác qua technician_id</text>
+    </g>
+  </g>
+
+  <!-- ============================================================== -->
+  <!-- 5. BOTTOM CONSTRAINTS LEGEND (PERFECTLY CENTERED: x=150, w=1140) -->
+  <!-- ============================================================== -->
+  <g transform="translate(150, 855)">
+    <rect width="1140" height="48" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="28" y="29" fill="#94a3b8" font-size="11" font-weight="700" letter-spacing="0.5">QUY ƯỚC KÝ HIỆU (CONSTRAINTS):</text>
+    <g transform="translate(300, 29)" font-size="11" font-weight="600">
+      <text x="0" fill="#f59e0b">PK: Primary Key</text>
+      <text x="145" fill="#c084fc">FK: Foreign Key</text>
+      <text x="285" fill="#38bdf8">UQ / IX: Unique / Index</text>
+      <text x="475" fill="#fb7185">CK: Check Constraint</text>
+      <text x="650" fill="#34d399">CP: Computed Persisted</text>
+    </g>
+  </g>
+</svg>

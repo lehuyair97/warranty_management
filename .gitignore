@@ -1,0 +1,69 @@
+# ==========================================
+# Operating System Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# Environment Variables & Secrets (CRITICAL)
+# ==========================================
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.cert
+
+# ==========================================
+# Node.js & Package Managers
+# ==========================================
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# Build Artifacts & Caches
+# ==========================================
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+.cache/
+
+# ==========================================
+# Database Persistence (Docker Volumes)
+# ==========================================
+mssql_data/
+*.mdf
+*.ldf
+*.log
+
+# ==========================================
+# IDE & Editor Configurations
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==========================================
+# Test & Coverage Outputs
+# ==========================================
+coverage/
+.nyc_output/

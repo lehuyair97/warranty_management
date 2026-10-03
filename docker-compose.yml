@@ -1,0 +1,108 @@
+services:
+  database:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: warranty_mssql
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${DB_PASSWORD:-Warranty@Pass123}"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+      - ./database:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${DB_PASSWORD:-Warranty@Pass123}' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${DB_PASSWORD:-Warranty@Pass123}' -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      warranty_net:
+        aliases:
+          - db
+          - database
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: warranty_db_init
+    environment:
+      MSSQL_SA_PASSWORD: "${DB_PASSWORD:-Warranty@Pass123}"
+      DB_DATABASE: "${DB_DATABASE:-warranty_management}"
+      DB_HOST: "database"
+    volumes:
+      - ./database:/docker-entrypoint-initdb.d
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - warranty_net
+    entrypoint: ["/bin/bash", "/docker-entrypoint-initdb.d/setup.sh"]
+    restart: "no"
+
+  core:
+    build:
+      context: ./core
+      dockerfile: Dockerfile
+      target: development
+    container_name: warranty_core
+    restart: unless-stopped
+    ports:
+      - "${CORE_PORT:-${BACKEND_PORT:-5001}}:5001"
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+      DB_HOST: database
+      DB_PORT: 1433
+      DB_USERNAME: sa
+      DB_PASSWORD: "${DB_PASSWORD:-Warranty@Pass123}"
+      DB_DATABASE: "${DB_DATABASE:-warranty_management}"
+      JWT_SECRET: "${JWT_SECRET:-super_secret_jwt_key_for_warranty_mgmt_2026}"
+      JWT_EXPIRES_IN: "7d"
+    volumes:
+      - ./core:/app
+      - /app/node_modules
+    depends_on:
+      database:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    networks:
+      warranty_net:
+        aliases:
+          - backend
+          - core
+
+  crm:
+    build:
+      context: ./crm
+      dockerfile: Dockerfile
+      target: development
+    container_name: warranty_crm
+    restart: unless-stopped
+    ports:
+      - "${CRM_PORT:-${FRONTEND_PORT:-3000}}:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: "http://localhost:5001/api"
+    volumes:
+      - ./crm:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - core
+    networks:
+      warranty_net:
+        aliases:
+          - frontend
+          - crm
+
+volumes:
+  mssql_data:
+    driver: local
+
+networks:
+  warranty_net:
+    driver: bridge

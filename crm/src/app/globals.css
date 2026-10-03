@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fbf9f5;
+  --foreground: #1c1917;
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --muted: #f4efe6;
+  --muted-foreground: #78716c;
+  --border: #e7e2d9;
+  --primary: #292524;
+  --primary-foreground: #ffffff;
+  --accent: #b45309;
+  --accent-foreground: #ffffff;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+}
+
+@theme {
+  --color-sand-50: #fbf9f5;
+  --color-sand-100: #f4efe6;
+  --color-sand-200: #e7e2d9;
+  --color-sand-300: #d6cebf;
+  --color-espresso-700: #44403c;
+  --color-espresso-800: #292524;
+  --color-espresso-900: #1c1917;
+  --color-bronze-500: #d97706;
+  --color-bronze-600: #b45309;
+  --color-bronze-700: #92400e;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Touch friendly minimum tap target for POS & Tablet */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Custom scrollbars for clean UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6cebf;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a29e;
+}
+
+/* Print styles for thermal 80mm POS slip and A4/A5 invoices */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .printable-receipt,
+  .printable-receipt * {
+    visibility: visible;
+  }
+  .printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 10px !important;
+    box-shadow: none !important;
+    border: 1px dashed #d6cebf !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
