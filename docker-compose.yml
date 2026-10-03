@@ -78,19 +78,15 @@ services:
     build:
       context: ./crm
       dockerfile: Dockerfile
-      target: development
+      target: production
     container_name: warranty_crm
     restart: unless-stopped
     ports:
       - "${CRM_PORT:-${FRONTEND_PORT:-3000}}:3000"
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 3000
       NEXT_PUBLIC_API_URL: "http://localhost:5001/api"
-    volumes:
-      - ./crm:/app
-      - /app/node_modules
-      - /app/.next
     depends_on:
       - core
     networks:

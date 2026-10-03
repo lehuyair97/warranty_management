@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   allowedDevOrigins: [
     'uit.warranty.com',
     'api.warranty.com',
