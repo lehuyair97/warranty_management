@@ -30,17 +30,6 @@ export const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     }
   }, [isLoading, isAuthenticated, isPublicRoute, router]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-sand-50 flex flex-col items-center justify-center gap-3">
-        <IconRefresh className="w-8 h-8 text-bronze-600 animate-spin" />
-        <span className="text-xs uppercase font-bold tracking-widest text-stone-500">
-          Khởi động hệ thống...
-        </span>
-      </div>
-    );
-  }
-
   if (isPublicRoute) {
     return (
       <QueryProvider>
@@ -50,6 +39,17 @@ export const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           <ToastContainer />
         </div>
       </QueryProvider>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-sand-50 flex flex-col items-center justify-center gap-3">
+        <IconRefresh className="w-8 h-8 text-bronze-600 animate-spin" />
+        <span className="text-xs uppercase font-bold tracking-widest text-stone-500">
+          Khởi động hệ thống...
+        </span>
+      </div>
     );
   }
 

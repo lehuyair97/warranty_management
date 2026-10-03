@@ -18,7 +18,7 @@ export const authState = proxy<AuthState>({
   user: null,
   accessToken: null,
   isAuthenticated: false,
-  isLoading: true,
+  isLoading: false,
 });
 
 /**
