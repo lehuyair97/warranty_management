@@ -45,13 +45,13 @@ services:
     build:
       context: ./core
       dockerfile: Dockerfile
-      target: development
+      target: production
     container_name: warranty_core
     restart: unless-stopped
     ports:
       - "${CORE_PORT:-${BACKEND_PORT:-5001}}:5001"
     environment:
-      NODE_ENV: development
+      NODE_ENV: production
       PORT: 5001
       DB_HOST: database
       DB_PORT: 1433
@@ -60,9 +60,6 @@ services:
       DB_DATABASE: "${DB_DATABASE:-warranty_management}"
       JWT_SECRET: "${JWT_SECRET:-super_secret_jwt_key_for_warranty_mgmt_2026}"
       JWT_EXPIRES_IN: "7d"
-    volumes:
-      - ./core:/app
-      - /app/node_modules
     depends_on:
       database:
         condition: service_healthy
