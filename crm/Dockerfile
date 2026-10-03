@@ -5,9 +5,9 @@ WORKDIR /app
 
 RUN npm install -g pnpm@latest
 
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* .npmrc* ./
 
-RUN pnpm install
+RUN pnpm install --ignore-scripts
 
 COPY . .
 
@@ -25,9 +25,9 @@ WORKDIR /app
 
 RUN npm install -g pnpm@latest
 
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* .npmrc* ./
 
-RUN pnpm install
+RUN pnpm install --ignore-scripts
 
 COPY . .
 
@@ -44,9 +44,9 @@ ENV HOSTNAME="0.0.0.0"
 
 RUN npm install -g pnpm@latest
 
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml* .npmrc* ./
 
-RUN pnpm install --prod
+RUN pnpm install --prod --ignore-scripts
 
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
