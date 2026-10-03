@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
   IconCheckCircle,
   IconCreditCard,
+  IconHistory,
   IconLaptop,
   IconRefresh,
   IconUser,
@@ -22,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useProcessTicket } from '@/hooks/useTickets';
+import { useProcessTicket, useTicketDetail } from '@/hooks/useTickets';
 import { uiActions } from '@/stores/ui.store';
 import { getErrorMessage, Ticket, TicketStatus } from '@/types';
 
@@ -315,25 +316,118 @@ const TechnicalDiagnosisSection: React.FC<{ ticket: Ticket }> = ({ ticket }) => 
   );
 };
 
+interface TicketAuditTimelineProps {
+  history?: Ticket['statusHistory'];
+}
+
+const TicketAuditTimeline: React.FC<TicketAuditTimelineProps> = ({ history = [] }) => {
+  return (
+    <div className="p-4 rounded-2xl bg-white border border-stone-200 space-y-3.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <IconHistory className="w-4 h-4 text-amber-700 shrink-0" />
+          <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider leading-none">
+            Nhật ký chuyển trạng thái & Kiểm toán (Audit Trail)
+          </h4>
+        </div>
+        <span className="text-[11px] text-stone-500 font-medium bg-sand-100 px-2.5 py-0.5 rounded-full border border-sand-200">
+          Trigger trg_tickets_audit_history
+        </span>
+      </div>
+
+      {!history || history.length === 0 ? (
+        <div className="p-4 bg-stone-50 rounded-xl border border-stone-200 text-stone-500 text-xs italic text-center">
+          Chưa có sự kiện chuyển đổi trạng thái nào khác kể từ lúc tiếp nhận.
+        </div>
+      ) : (
+        <div className="relative pl-6 space-y-3 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-sand-300">
+          {history.map((entry, idx) => {
+            const isLatest = idx === 0;
+            const newCfg = getTicketStatusConfig(entry.newStatus);
+            const oldCfg = entry.oldStatus ? getTicketStatusConfig(entry.oldStatus) : null;
+
+            return (
+              <div key={entry.id || idx} className="relative">
+                {/* Node indicator */}
+                <div
+                  className={`absolute -left-6 top-1.5 w-3 h-3 rounded-full border-2 border-white shadow-xs ${
+                    isLatest ? `${newCfg.dotClass} ring-2 ring-amber-500/40` : 'bg-stone-300'
+                  }`}
+                />
+
+                <div className="p-3 bg-stone-50/70 hover:bg-stone-50 rounded-xl border border-stone-200/80 transition-colors space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                      {oldCfg ? (
+                        <>
+                          <Badge variant="outline" size="sm">
+                            {oldCfg.label}
+                          </Badge>
+                          <span className="text-stone-400 font-bold text-xs">➔</span>
+                          <Badge variant="primary" size="sm">
+                            {newCfg.label}
+                          </Badge>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-stone-500 text-[11px]">Tiếp nhận ban đầu:</span>
+                          <Badge variant="primary" size="sm">
+                            {newCfg.label}
+                          </Badge>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-stone-500 font-mono">
+                      {formatDateTime(entry.createdAt)}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-stone-600 flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-stone-200/60">
+                    <span className="text-[11px]">
+                      Thao tác bởi:{' '}
+                      <strong className="text-stone-800">
+                        {entry.technician?.fullName ||
+                          (entry.technicianId ? `Nhân viên #${entry.technicianId}` : 'Hệ thống')}
+                      </strong>
+                    </span>
+                    {entry.note && (
+                      <span className="text-stone-500 text-[11px] italic bg-white px-2 py-0.5 rounded border border-stone-200">
+                        {entry.note}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   open,
   onOpenChange,
   ticket,
 }) => {
-  if (!ticket) return null;
+  const { data: freshTicket } = useTicketDetail(open ? ticket?.id : undefined);
+  const activeTicket = freshTicket || ticket;
+
+  if (!activeTicket) return null;
 
   return (
     <BaseModal
       open={open}
       onOpenChange={onOpenChange}
-      title={`Hồ sơ chi tiết: ${formatTicketCode(ticket.id)}`}
+      title={`Hồ sơ chi tiết: ${formatTicketCode(activeTicket.id)}`}
       description={`Mã tiếp nhận bảo hành & sửa chữa hệ thống UIT CARE`}
       size="2xl"
       footerContent={
         <div className="w-full flex items-center justify-between">
           <span className="text-xs text-stone-500 font-mono">
-            Mã phiếu: <strong className="text-stone-800">{formatTicketCode(ticket.id)}</strong>
-            {ticket.device?.serialNumber && ` • S/N: ${ticket.device.serialNumber}`}
+            Mã phiếu: <strong className="text-stone-800">{formatTicketCode(activeTicket.id)}</strong>
+            {activeTicket.device?.serialNumber && ` • S/N: ${activeTicket.device.serialNumber}`}
           </span>
           <Button
             variant="outline"
@@ -349,8 +443,8 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
       <div className="space-y-6">
         {/* Status Banner & Transition Control */}
         <TicketStatusControl
-          key={`${ticket.id}_${ticket.status}`}
-          ticket={ticket}
+          key={`${activeTicket.id}_${activeTicket.status}`}
+          ticket={activeTicket}
         />
 
         {/* 3 Grid Info Cards */}
@@ -363,12 +457,12 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
             </div>
             <div className="text-xs space-y-1 text-stone-600">
               <div className="font-semibold text-stone-900">
-                {ticket.device?.customer?.fullName}
+                {activeTicket.device?.customer?.fullName}
               </div>
               <div className="font-mono text-stone-700">
-                {ticket.device?.customer?.phoneNumber}
+                {activeTicket.device?.customer?.phoneNumber}
               </div>
-              <div>{ticket.device?.customer?.address || 'Chưa cập nhật địa chỉ'}</div>
+              <div>{activeTicket.device?.customer?.address || 'Chưa cập nhật địa chỉ'}</div>
             </div>
           </Card>
 
@@ -380,13 +474,13 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
             </div>
             <div className="text-xs space-y-1 text-stone-600">
               <div className="font-semibold text-stone-900">
-                {ticket.device?.deviceName}
+                {activeTicket.device?.deviceName}
               </div>
               <div className="font-mono text-stone-700">
-                S/N: {ticket.device?.serialNumber}
+                S/N: {activeTicket.device?.serialNumber}
               </div>
               <div className="text-[11px] text-stone-500">
-                Thương hiệu: {ticket.device?.brand} | Loại: {ticket.device?.deviceType}
+                Thương hiệu: {activeTicket.device?.brand} | Loại: {activeTicket.device?.deviceType}
               </div>
             </div>
           </Card>
@@ -401,35 +495,38 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
               <div>
                 <span className="text-stone-400">Tiếp nhận: </span>
                 <span className="font-medium text-stone-800">
-                  {ticket.receptionist?.fullName || 'N/A'}
+                  {activeTicket.receptionist?.fullName || 'N/A'}
                 </span>
               </div>
               <div>
                 <span className="text-stone-400">Kỹ thuật: </span>
                 <span className="font-semibold text-amber-800">
-                  {ticket.technician?.fullName || 'Chưa phân công'}
+                  {activeTicket.technician?.fullName || 'Chưa phân công'}
                 </span>
               </div>
               <div>
                 <span className="text-stone-400">Ngày nhận: </span>
-                <span>{formatDateTime(ticket.receivedAt)}</span>
+                <span>{formatDateTime(activeTicket.receivedAt)}</span>
               </div>
             </div>
           </Card>
         </div>
 
         {/* Diagnosis & Technical Findings */}
-        <TechnicalDiagnosisSection ticket={ticket} />
+        <TechnicalDiagnosisSection ticket={activeTicket} />
+
+        {/* Audit Trail & Status History */}
+        <TicketAuditTimeline history={activeTicket.statusHistory} />
 
         {/* Billing / Invoices */}
-        {ticket.invoices && ticket.invoices.length > 0 && (
+        {activeTicket.invoices && activeTicket.invoices.length > 0 && (
           <div className="p-4 rounded-2xl bg-white border border-stone-200 space-y-3">
             <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-2">
               <IconCreditCard className="w-4 h-4 text-stone-500" />
               Lịch sử thanh toán & Hóa đơn liên quan
             </h4>
 
-            {ticket.invoices.map((inv) => (
+            {activeTicket.invoices.map((inv) => (
               <div
                 key={inv.id}
                 className="p-3 bg-stone-50 rounded-xl border border-stone-200 flex items-center justify-between text-xs"

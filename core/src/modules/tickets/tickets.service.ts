@@ -19,6 +19,7 @@ import { DeviceEntity } from '@/database/entities/device.entity';
 import { EmployeeEntity } from '@/database/entities/employee.entity';
 import { InvoiceEntity } from '@/database/entities/invoice.entity';
 import { TicketEntity } from '@/database/entities/ticket.entity';
+import { TicketStatusHistoryEntity } from '@/database/entities/ticket-status-history.entity';
 import { AssignTechnicianDto } from './dto/assign-technician.dto';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { ProcessTicketDto } from './dto/process-ticket.dto';
@@ -37,6 +38,8 @@ export class TicketsService {
     private readonly deviceRepo: Repository<DeviceEntity>,
     @InjectRepository(EmployeeEntity)
     private readonly employeeRepo: Repository<EmployeeEntity>,
+    @InjectRepository(TicketStatusHistoryEntity)
+    private readonly statusHistoryRepo: Repository<TicketStatusHistoryEntity>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -65,7 +68,9 @@ export class TicketsService {
       .leftJoinAndSelect('ticket.technician', 'technician')
       .leftJoinAndSelect('ticket.invoices', 'invoices')
       .leftJoinAndSelect('invoices.items', 'invoiceItems')
-      .leftJoinAndSelect('invoiceItems.part', 'part');
+      .leftJoinAndSelect('invoiceItems.part', 'part')
+      .leftJoinAndSelect('ticket.statusHistory', 'statusHistory')
+      .leftJoinAndSelect('statusHistory.technician', 'historyTech');
 
     if (status) {
       qb.andWhere('ticket.status = :status', { status });
@@ -110,7 +115,7 @@ export class TicketsService {
   }
 
   /**
-   * Retrieves ticket details by primary key with relations.
+   * Retrieves ticket details by primary key with relations and audit trail history.
    */
   async findOne(id: number): Promise<TicketEntity> {
     const ticket = await this.ticketRepo.findOne({
@@ -123,7 +128,14 @@ export class TicketsService {
         'invoices',
         'invoices.items',
         'invoices.items.part',
+        'statusHistory',
+        'statusHistory.technician',
       ],
+      order: {
+        statusHistory: {
+          createdAt: 'DESC',
+        },
+      },
     });
 
     if (!ticket) {
@@ -131,6 +143,18 @@ export class TicketsService {
     }
 
     return ticket;
+  }
+
+  /**
+   * Retrieves audit status transition history for a specific ticket.
+   */
+  async getStatusHistory(ticketId: number): Promise<TicketStatusHistoryEntity[]> {
+    await this.findOne(ticketId);
+    return this.statusHistoryRepo.find({
+      where: { ticketId },
+      relations: ['technician'],
+      order: { createdAt: 'DESC' },
+    });
   }
 
   /**

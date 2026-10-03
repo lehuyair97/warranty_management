@@ -164,6 +164,21 @@ export interface Ticket {
   receptionist?: UserProfile;
   technician?: UserProfile | null;
   invoices?: Invoice[];
+  statusHistory?: TicketStatusHistory[];
+}
+
+/**
+ * Ticket status transition audit log recorded by database trigger.
+ */
+export interface TicketStatusHistory {
+  id: number;
+  ticketId: number;
+  oldStatus?: TicketStatus | null;
+  newStatus: TicketStatus;
+  technicianId?: number | null;
+  technician?: UserProfile | null;
+  note?: string | null;
+  createdAt: string;
 }
 
 /**

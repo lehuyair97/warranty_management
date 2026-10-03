@@ -211,6 +211,21 @@ BEGIN
 END
 GO
 
+-- 5.8. Seed Initial Ticket Status History (Audit Trail)
+IF NOT EXISTS (SELECT 1 FROM ticket_status_history)
+BEGIN
+    INSERT INTO ticket_status_history (ticket_id, old_status, new_status, technician_id, note, created_at)
+    SELECT 
+        t.id,
+        NULL,
+        'received',
+        t.technician_id,
+        N'Tiếp nhận thiết bị ban đầu tại quầy lễ tân',
+        t.received_at
+    FROM tickets t;
+END
+GO
+
 -- Re-enable operational triggers for live runtime enforcement
 ALTER TABLE tickets ENABLE TRIGGER ALL;
 ALTER TABLE invoices ENABLE TRIGGER ALL;

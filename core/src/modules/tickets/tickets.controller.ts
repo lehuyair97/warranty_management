@@ -56,6 +56,13 @@ export class TicketsController {
     return this.ticketsService.findOne(id);
   }
 
+  @Get(':id/history')
+  @Roles(EmployeeRole.MANAGER, EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Get audit status history transitions for a ticket' })
+  async getStatusHistory(@Param('id', ParseIntPipe) id: number) {
+    return this.ticketsService.getStatusHistory(id);
+  }
+
   @Post()
   @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.MANAGER)
   @ApiOperation({ summary: 'Receive a device and create a new repair ticket (Receptionist only)' })

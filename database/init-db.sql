@@ -935,6 +935,18 @@ INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price) VALUES
 (20, 20, 1, 210000);
 GO
 
+-- 6.8. Seed Initial Ticket Status History (Audit Trail)
+INSERT INTO ticket_status_history (ticket_id, old_status, new_status, technician_id, note, created_at)
+SELECT 
+    t.id,
+    NULL,
+    'received',
+    t.technician_id,
+    N'Tiếp nhận thiết bị ban đầu tại quầy lễ tân',
+    t.received_at
+FROM tickets t;
+GO
+
 -- Re-enable operational triggers for live runtime enforcement
 ALTER TABLE tickets ENABLE TRIGGER ALL;
 ALTER TABLE invoices ENABLE TRIGGER ALL;
