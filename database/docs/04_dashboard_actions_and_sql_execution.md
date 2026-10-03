@@ -66,208 +66,130 @@ sequenceDiagram
 
 ---
 
-## 2. Chi Tiết 10 Thao Tác Nghiệp Vụ Trên Dashboard & Ánh Xạ SQL Engine
+## 2. Phân Nhóm 1: Gom Theo Database Triggers (7 Triggers)
+
+| Tên Trigger | Bảng Tác Động | Sự Kiện | Thao Tác Kích Hoạt Trên UI Dashboard | Cơ Chế Kiểm Soát Tự Động & Ràng Buộc | Mã Lỗi Rollback |
+|:---|:---|:---:|:---|:---|:---:|
+| **`trg_invoice_items_stock`** | `invoice_items` | `INSERT`<br/>`UPDATE`<br/>`DELETE` | • KTV thêm linh kiện vào báo giá (`INSERT`)<br/>• KTV chỉnh sửa số lượng (`UPDATE`)<br/>• KTV bấm icon thùng rác xóa linh kiện (`DELETE`) | • Tự động trừ `parts.stock_quantity`<br/>• Tự động tính delta chênh lệch kho<br/>• Tự động hoàn trả số lượng về kho khi xóa dòng<br/>• Hủy bỏ toàn bộ giao dịch nếu tồn kho âm | **`50001`** *(Kho không đủ số lượng)* |
+| **`trg_invoices_total_amount`** | `invoice_items` | `INSERT`<br/>`UPDATE`<br/>`DELETE` | Bất kỳ thao tác thêm mới, sửa số lượng hoặc xóa dòng linh kiện trong hóa đơn | Tự động tính toán lại `invoices.total_amount` bằng cách gọi hàm `fn_calculate_parts_total` | — |
+| **`trg_invoices_labor_update`** | `invoices` | `INSERT`<br/>`UPDATE` | Lễ tân / KTV chỉnh sửa tiền công dịch vụ (`labor_fee`) hoặc chiết khấu (`discount_amount`) | Tự động tính lại tổng tiền hóa đơn: `total_amount = MAX(0, labor_fee - discount_amount) + linh_kien` | — |
+| **`trg_tickets_workflow_guard`** | `tickets` | `INSERT`<br/>`UPDATE` | • KTV đổi trạng thái phiếu sang `inspecting`, `repairing`, `completed`<br/>• Lễ tân bấm bàn giao máy (`delivered`) | • Bắt buộc phân công KTV trước khi chuyển trạng thái kỹ thuật<br/>• Ngăn nhảy cóc sang `delivered` khi chưa `completed`<br/>• Cấm mở lại phiếu đã bàn giao<br/>• Tự động điền `completed_at = GETDATE()` | **`50003`** *(Thiếu KTV)*<br/>**`50004`** *(Sai tiến trình)* |
+| **`trg_tickets_audit_history`** | `tickets` | `INSERT`<br/>`UPDATE` | Bất kỳ thao tác tạo phiếu mới hoặc cập nhật trạng thái phiếu | Tự động ghi vết sự kiện biến động vào `ticket_status_history` (`old_status`, `new_status`, `technician_id`, `created_at`) | — |
+| **`trg_invoice_items_freeze_paid`** | `invoice_items` | `INSERT`<br/>`UPDATE`<br/>`DELETE` | Bất kỳ ai cố tình gửi lệnh thêm, sửa hoặc xóa linh kiện của một hóa đơn đã thanh toán | **Khóa tài chính cấp dòng**: Cấm tuyệt đối chỉnh sửa danh mục linh kiện một khi hóa đơn đã `paid` | **`50035`** *(HĐ đã thanh toán)* |
+| **`trg_invoices_freeze_paid_amounts`** | `invoices` | `UPDATE` | Bất kỳ ai cố tình sửa tiền hoặc chuyển trạng thái từ `paid` ngược về `unpaid` | **Khóa tài chính cấp hóa đơn**: Đóng băng vĩnh viễn số tiền và cấm đảo ngược trạng thái | **`50036`** *(HĐ đã thanh toán)* |
 
 ---
 
-### Quy Trình 1: Tiếp Nhận Thiết Bị Mới
-* **Màn hình giao diện**: Phân hệ Lễ tân (`/reception`).
-* **Thao tác người dùng**:
-  1. Lễ tân nhập Số điện thoại, Họ tên khách hàng.
-  2. Nhập thông tin thiết bị: Tên máy, Hãng sản xuất, Số Serial/IMEI, Hạn bảo hành chính hãng.
-  3. Nhập mô tả lỗi ban đầu và phụ kiện kèm theo.
-  4. Bấm nút **"Tạo phiếu tiếp nhận"** (Nút màu hổ phách/cam đậm).
-* **REST API kích hoạt**: `POST /api/tickets`
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_receive_device`**:
-     * Kiểm tra khách hàng: Nếu SĐT đã có $\rightarrow$ lấy `customer_id`; nếu chưa $\rightarrow$ `INSERT dbo.customers`.
-     * Kiểm tra thiết bị: Định danh theo `serial_number`, tự động cập nhật hoặc tạo mới trong `dbo.devices`.
-     * Tạo phiếu tiếp nhận: `INSERT INTO dbo.tickets (status = 'received', ...)`.
-  2. **Scalar Function `dbo.fn_is_device_under_warranty`**:
-     * Được SP gọi để so sánh ngày tiếp nhận với hạn bảo hành của thiết bị.
-     * Nếu còn hạn $\rightarrow$ gán `ticket_type = 'warranty'` (phiếu bảo hành miễn phí tiền công).
-     * Nếu hết hạn $\rightarrow$ gán `ticket_type = 'repair'` (phiếu sửa chữa dịch vụ có tính phí).
-  3. **Database Trigger `trg_tickets_audit_history`**:
-     * Tự động bắt sự kiện `INSERT` trên bảng `tickets`.
-     * Ghi ngay một bản ghi lịch sử vào `dbo.ticket_status_history` với `old_status = NULL`, `new_status = 'received'`.
+## 3. Phân Nhóm 2: Gom Theo Database Cursors (2 Con Trỏ T-SQL)
+
+| Tên Cursor | Nằm Trong Thủ Tục | Màn Hình / Thao Tác Trên UI | Cơ Chế Duyệt Con Trỏ & Mục Đích Nghiệp Vụ |
+|:---|:---|:---|:---|
+| **`cur_delayed_tickets`** | `dbo.sp_alert_delayed_tickets` | **Dashboard Giám Đốc (`/dashboard`)**: Mở trang hoặc bấm nút **"Làm mới"** $\rightarrow$ Widget *"Phiếu quá hạn SLA (>14 ngày)"* | Con trỏ duyệt tuần tự qua từng phiếu đang mở quá hạn SLA (>14 ngày), JOIN thông tin khách hàng, thiết bị và KTV phụ trách, tính chính xác số ngày trễ nạp vào dataset cho Dashboard hiển thị cảnh báo đỏ. |
+| **`cur_invoices`** | `dbo.sp_audit_invoices` | **Dashboard Giám Đốc (`/dashboard`)**: Bấm nút **"Đối soát hóa đơn & Doanh thu"** $\rightarrow$ Bấm **"Bắt đầu quét đối soát"** | Con trỏ duyệt qua 100% hóa đơn trong CSDL, gọi hàm `fn_calculate_parts_total` để so khớp tổng tiền thực tế với `total_amount`. Nếu bật `auto_fix = 1`, con trỏ tự động sửa đúng số tiền cho từng hóa đơn bị lệch. |
 
 ---
 
-### Quy Trình 2: Kỹ Thuật Viên Nhận Phiếu & Chuyển Trạng Thái
-* **Màn hình giao diện**: Bàn làm việc KTV (`/technician`).
-* **Thao tác người dùng**:
-  1. KTV xem danh sách phiếu được phân công.
-  2. Mở dropdown trạng thái chọn: *"Bắt đầu kiểm tra"* (`inspecting`), *"Chờ linh kiện"* (`waiting_for_parts`), hoặc *"Đang sửa chữa"* (`repairing`).
-  3. Nhập nguyên nhân lỗi (`fault_cause`) và hướng xử lý (`repair_solution`).
-  4. Bấm nút **"Cập nhật tiến độ"**.
-* **REST API kích hoạt**: `PATCH /api/tickets/:id/process`
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_process_ticket`**:
-     * Cập nhật `status`, `fault_cause`, `repair_solution` trên bảng `tickets`.
-  2. **Database Trigger `trg_tickets_workflow_guard` (Ràng buộc State Machine)**:
-     * **Kiểm tra KTV (Mã 50003)**: Nếu chuyển sang trạng thái kỹ thuật mà `technician_id IS NULL`, giao dịch bị `ROLLBACK` lập tức với thông điệp: `Phải phân công kỹ thuật viên trước khi chuyển sang trạng thái này!`.
-     * **Kiểm tra thứ tự (Mã 50004)**: Ngăn chặn nhảy cóc thẳng sang `delivered` khi chưa hoàn tất sửa chữa (`completed`).
-     * **Bảo vệ phiếu đã bàn giao**: Nếu phiếu đã giao máy cho khách (`status = 'delivered'`), trigger cấm mở lại phiếu.
-  3. **Database Trigger `trg_tickets_audit_history`**:
-     * Tự động so sánh `old_status` và `new_status`. Ghi vết sự kiện kèm ID của KTV vào `dbo.ticket_status_history`.
+## 4. Phân Nhóm 3: Gom Theo User-Defined Functions (3 Functions)
+
+| Tên Function | Loại Hàm | Màn Hình / Vị Trí Gọi Trên Dashboard | Kết Quả Trả Về & Ứng Dụng Thực Tế |
+|:---|:---:|:---|:---|
+| **`dbo.fn_calculate_parts_total`** | Scalar | Gọi ngầm trong Triggers `trg_invoices_total_amount`, `trg_invoices_labor_update` và Stored Procedure `sp_audit_invoices` | Trả về tổng tiền linh kiện: $\sum(\text{quantity} \times \text{unit\_price})$ dạng `DECIMAL(18,2)`. |
+| **`dbo.fn_is_device_under_warranty`** | Scalar | • **Màn hình Tiếp nhận (`/reception`)**: Khi tạo phiếu mới<br/>• **Màn hình Tra cứu (`/tra-cuu`)**: Khách tra cứu thiết bị | Trả về `1` (Còn bảo hành) hoặc `0` (Hết hạn). Tự động phân loại `warranty` (miễn phí) hay `repair` (tính phí); hiển thị badge xanh/vàng. |
+| **`dbo.fn_get_device_repair_history`** | Table-Valued | • **Màn hình Tra cứu (`/tra-cuu`)**<br/>• **Modal Chi tiết máy (`/tickets`)** | Trả về bảng lịch sử sửa chữa đa tầng: Ngày nhận, mã phiếu, lỗi, linh kiện đã thay, KTV thực hiện và kết quả bàn giao. |
 
 ---
 
-### Quy Trình 3: Xuất Dùng Linh Kiện Vào Hóa Đơn Báo Giá
-* **Màn hình giao diện**: Modal "Chẩn đoán & Chỉ định linh kiện" trên màn hình KTV (`/technician`) hoặc Chi tiết phiếu (`/tickets`).
-* **Thao tác người dùng**:
-  1. KTV chọn món linh kiện từ kho (ví dụ: *SSD Samsung 980 Pro 1TB*).
-  2. Nhập số lượng cần xuất dùng (ví dụ: `2`).
-  3. Bấm nút **"Thêm vào báo giá"**.
-* **REST API kích hoạt**: `POST /api/invoices/:id/items`
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_add_invoice_part`**:
-     * Kiểm tra trạng thái hóa đơn: Nếu đã thanh toán (`paid`), ném lỗi `50041`.
-     * Đọc giá hiện tại từ kho: `SELECT @unit_price = price FROM parts WHERE id = @part_id`.
-     * Thêm dòng mới vào `invoice_items` với đơn giá `unit_price` vừa capture được (Price Snapshot).
-  2. **Database Trigger `trg_invoice_items_stock` (Trừ Kho Tự Động)**:
-     * Tự động thực hiện trừ tồn kho: `parts.stock_quantity = stock_quantity - inserted.quantity`.
-     * **Ràng buộc chống âm kho (Mã 50001)**: Nếu sau khi trừ, `stock_quantity < 0`, trigger lập tức `ROLLBACK TRANSACTION` và ném mã lỗi:
-       ```
-       THROW 50001, N'Không đủ số lượng linh kiện trong kho để xuất sử dụng!', 1;
-       ```
-  3. **Database Trigger `trg_invoices_total_amount` (Tính Tiền Tự Động)**:
-     * Kích hoạt hàm Scalar Function `dbo.fn_calculate_parts_total(@invoice_id)`.
-     * Tính tổng chi phí linh kiện $\sum(\text{quantity} \times \text{unit\_price})$.
-     * Tự động cập nhật `invoices.total_amount = MAX(0, labor_fee - discount_amount) + parts_total`.
+## 5. Phân Nhóm 4: Gom Theo Stored Procedures (7 Thủ Tục)
+
+| Stored Procedure | Màn Hình / Nút Bấm Trên UI | Nghiệp Vụ Thực Thi Nguyên Tử (ACID) |
+|:---|:---|:---|
+| **`dbo.sp_receive_device`** | Phân hệ Lễ tân (`/reception`) $\rightarrow$ Bấm **"Tạo phiếu tiếp nhận"** | Tạo khách $\rightarrow$ Tạo/cập nhật máy $\rightarrow$ Gọi hàm bảo hành $\rightarrow$ Tạo phiếu `received` $\rightarrow$ Kích hoạt trigger ghi audit. |
+| **`dbo.sp_process_ticket`** | Bàn làm việc KTV (`/technician`) $\rightarrow$ Bấm **"Cập nhật tiến độ"** | Cập nhật trạng thái phiếu $\rightarrow$ Ghi nguyên nhân/giải pháp $\rightarrow$ Kích hoạt trigger kiểm tra KTV & tự điền `completed_at`. |
+| **`dbo.sp_create_invoice`** | Màn hình Hóa đơn / KTV $\rightarrow$ Khởi tạo hóa đơn báo giá | Tạo hóa đơn cho phiếu $\rightarrow$ Gán tiền công & chiết khấu $\rightarrow$ Kích hoạt trigger tính tổng tiền. |
+| **`dbo.sp_add_invoice_part`** | Modal Chẩn đoán $\rightarrow$ Chọn linh kiện kho $\rightarrow$ Bấm **"Thêm vào báo giá"** | Capture giá kho bất biến $\rightarrow$ Gán vào `invoice_items` $\rightarrow$ Kích hoạt trigger trừ kho & trigger tính lại tổng tiền. |
+| **`dbo.sp_checkout_invoice`** | Phân hệ Thu ngân (`/cashier`) $\rightarrow$ Bấm **"Xác nhận thanh toán"** | Ghi nhận hình thức thanh toán $\rightarrow$ Gán `paid_at` $\rightarrow$ Đổi sang `paid` $\rightarrow$ Kích hoạt bộ đôi trigger khóa bất biến. |
+| **`dbo.sp_alert_delayed_tickets`** | Dashboard Giám đốc (`/dashboard`) $\rightarrow$ Widget Cảnh báo trễ SLA | Sử dụng **Cursor `cur_delayed_tickets`** duyệt tìm các phiếu quá hạn > 14 ngày, trả về danh sách cảnh báo. |
+| **`dbo.sp_audit_invoices`** | Dashboard Giám đốc (`/dashboard`) $\rightarrow$ Modal Đối soát doanh thu | Sử dụng **Cursor `cur_invoices`** duyệt đối soát 100% hóa đơn, tự động sửa sai số nếu bật `@auto_fix = 1`. |
 
 ---
 
-### Quy Trình 4: Kỹ Thuật Viên Gỡ Bỏ Linh Kiện Khỏi Hóa Đơn
-* **Màn hình giao diện**: Modal Chi tiết hóa đơn / Danh sách linh kiện đã chọn.
-* **Thao tác người dùng**:
-  * Khi KTV kiểm tra lại thấy linh kiện không cần dùng $\rightarrow$ Bấm nút biểu tượng **Thùng rác màu đỏ** bên cạnh dòng linh kiện đó.
-* **REST API kích hoạt**: `DELETE /api/invoices/:id/items/:partId`
-* **Đối tượng CSDL được thực thi**:
-  1. **Lệnh SQL**: `DELETE FROM dbo.invoice_items WHERE invoice_id = @id AND part_id = @partId;`
-  2. **Database Trigger `trg_invoice_items_freeze_paid` (Khóa dòng)**:
-     * Kiểm tra trạng thái của hóa đơn chứa dòng này. Nếu hóa đơn đã `paid`, cấm xóa và ném lỗi `50035`.
-  3. **Database Trigger `trg_invoice_items_stock` (Hoàn Trả Kho Tự Động)**:
-     * Bắt sự kiện `DELETE`.
-     * Tự động hoàn lại số lượng linh kiện về kho:
-       `UPDATE parts SET stock_quantity = stock_quantity + deleted.quantity WHERE id = deleted.part_id`.
-  4. **Database Trigger `trg_invoices_total_amount`**:
-     * Tự động trừ tiền món linh kiện vừa xóa ra khỏi `invoices.total_amount`.
+## 6. Phân Nhóm 5: Gom Theo Thao Tác Người Dùng Trên Từng Phân Hệ Dashboard
+
+### 6.1 Phân Hệ Lễ Tân Tiếp Nhận (`/reception`)
+* **Thao tác 1: Tạo phiếu tiếp nhận máy mới**
+  * Nút bấm: **"Tạo phiếu tiếp nhận"**
+  * REST API: `POST /api/tickets`
+  * Thủ tục: `dbo.sp_receive_device`
+  * Function: `dbo.fn_is_device_under_warranty`
+  * Trigger: `trg_tickets_audit_history`
+* **Thao tác 2: Bàn giao máy cho khách**
+  * Nút bấm: **"Bàn giao máy"**
+  * REST API: `PATCH /api/tickets/:id/process` với `{ status: "delivered" }`
+  * Trigger: `trg_tickets_workflow_guard` (kiểm tra phải qua `completed`, ném lỗi `50004` nếu nhảy cóc) & `trg_tickets_audit_history`.
 
 ---
 
-### Quy Trình 5: Kỹ Thuật Viên Báo Máy Sửa Xong
-* **Màn hình giao diện**: Màn hình Kỹ thuật viên (`/technician`).
-* **Thao tác người dùng**:
-  * KTV sửa xong thiết bị $\rightarrow$ Chọn trạng thái **"Hoàn tất sửa chữa"** (`completed`) $\rightarrow$ Bấm nút **"Xác nhận hoàn tất"**.
-* **REST API kích hoạt**: `PATCH /api/tickets/:id/process` với payload `{ status: "completed" }`.
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_process_ticket`**:
-     * Cập nhật `tickets.status = 'completed'`.
-  2. **Database Trigger `trg_tickets_workflow_guard`**:
-     * Bắt sự kiện chuyển sang `completed`.
-     * Tự động điền dấu mốc hoàn tất kỹ thuật: `completed_at = GETDATE()`.
-  3. **Database Trigger `trg_tickets_audit_history`**:
-     * Ghi vết trạng thái `completed` phục vụ đo lường thời gian xử lý thực tế (Turnaround Time - TAT).
+### 6.2 Phân Hệ Kỹ Thuật Viên Sửa Chữa (`/technician`)
+* **Thao tác 3: Nhận phiếu & Chuyển trạng thái**
+  * Nút bấm: **"Cập nhật tiến độ"** (`inspecting`, `waiting_for_parts`, `repairing`)
+  * REST API: `PATCH /api/tickets/:id/process`
+  * Thủ tục: `dbo.sp_process_ticket`
+  * Trigger: `trg_tickets_workflow_guard` (kiểm tra `technician_id`, ném lỗi `50003` nếu thiếu) & `trg_tickets_audit_history`.
+* **Thao tác 4: Xuất kho linh kiện vào báo giá**
+  * Nút bấm: **"Thêm vào báo giá"** (trong modal chẩn đoán)
+  * REST API: `POST /api/invoices/:id/items`
+  * Thủ tục: `dbo.sp_add_invoice_part`
+  * Trigger: `trg_invoice_items_stock` (trừ kho, chặn âm kho lỗi `50001`), `trg_invoices_total_amount` (tính lại tiền), `trg_invoice_items_freeze_paid`.
+  * Function: `dbo.fn_calculate_parts_total`.
+* **Thao tác 5: Gỡ bỏ linh kiện khỏi báo giá**
+  * Nút bấm: Icon **Thùng rác đỏ** bên cạnh dòng linh kiện
+  * REST API: `DELETE /api/invoices/:id/items/:partId`
+  * Trigger: `trg_invoice_items_stock` (tự động hoàn trả hàng về kho), `trg_invoices_total_amount` (tự động giảm tổng tiền), `trg_invoice_items_freeze_paid` (chặn nếu đã thanh toán lỗi `50035`).
+* **Thao tác 6: Xác nhận hoàn tất sửa chữa**
+  * Nút bấm: **"Hoàn tất sửa chữa"** (`completed`)
+  * REST API: `PATCH /api/tickets/:id/process` với `{ status: "completed" }`
+  * Thủ tục: `dbo.sp_process_ticket`
+  * Trigger: `trg_tickets_workflow_guard` (tự động gán `completed_at = GETDATE()`) & `trg_tickets_audit_history`.
 
 ---
 
-### Quy Trình 6: Thu Ngân Thanh Toán & Khóa Bất Biến Tài Chính
-* **Màn hình giao diện**: Phân hệ Thu ngân (`/cashier`) $\rightarrow$ Tab "Chờ thanh toán".
-* **Thao tác người dùng**:
-  1. Thu ngân bấm nút **"Thanh toán"** trên dòng hóa đơn.
-  2. Mở Checkout Modal kiểm tra tổng tiền.
-  3. Chọn phương thức: *Tiền mặt* (`cash`), *Chuyển khoản* (`bank_transfer`), hoặc *Quẹt thẻ* (`credit_card`).
-  4. Bấm nút **"Xác nhận thanh toán"**.
-* **REST API kích hoạt**: `POST /api/invoices/:id/checkout`
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_checkout_invoice`**:
-     * Đổi `status = 'paid'`, cập nhật `payment_method`, gán thời gian `paid_at = GETDATE()`.
-  2. **Bộ Đôi Trigger Khóa Bất Biến Tài Chính (Financial Immutability)**:
-     * **Cấp Hóa Đơn (`trg_invoices_freeze_paid_amounts`)**:
-       * Kể từ giây phút này, bất kỳ ai cố tình gửi lệnh `UPDATE invoices` sửa `total_amount`, `labor_fee`, `discount_amount` hoặc đảo ngược `status` từ `paid` về `unpaid` đều bị `ROLLBACK` và ném mã lỗi:
-         ```
-         THROW 50036, N'Hóa đơn đã thanh toán không thể sửa đổi số tiền hoặc đảo ngược trạng thái!', 1;
-         ```
-     * **Cấp Dòng Chi Tiết (`trg_invoice_items_freeze_paid`)**:
-       * Cấm tuyệt đối mọi thao tác `INSERT`, `UPDATE`, `DELETE` trên bảng `invoice_items` của hóa đơn đã thanh toán, ném mã lỗi:
-         ```
-         THROW 50035, N'Không thể thêm, sửa, hoặc xóa linh kiện của hóa đơn đã thanh toán!', 1;
-         ```
+### 6.3 Phân Hệ Thu Ngân Thanh Toán (`/cashier`)
+* **Thao tác 7: Xác nhận thanh toán hóa đơn**
+  * Nút bấm: **"Xác nhận thanh toán"** (trong Checkout Modal)
+  * REST API: `POST /api/invoices/:id/checkout`
+  * Thủ tục: `dbo.sp_checkout_invoice`
+  * Trigger: `trg_invoices_freeze_paid_amounts` & `trg_invoice_items_freeze_paid` (đóng băng vĩnh viễn hóa đơn).
+* **Thao tác 8: Cố tình chỉnh sửa hóa đơn đã thanh toán**
+  * Thao tác: Gửi lệnh sửa tiền hoặc xóa linh kiện của HĐ `paid`
+  * Trigger: `trg_invoices_freeze_paid_amounts` (ném lỗi `50036`), `trg_invoice_items_freeze_paid` (ném lỗi `50035`).
 
 ---
 
-### Quy Trình 7: Bàn Giao Thiết Bị Cho Khách Hàng
-* **Màn hình giao diện**: Phân hệ Lễ tân (`/reception`) hoặc Danh bạ phiếu (`/tickets`).
-* **Thao tác người dùng**:
-  * Khi khách đến nhận máy $\rightarrow$ Nhân viên bấm nút **"Bàn giao máy"** (`delivered`).
-* **REST API kích hoạt**: `PATCH /api/tickets/:id/process` với payload `{ status: "delivered" }`.
-* **Đối tượng CSDL được thực thi**:
-  1. **Database Trigger `trg_tickets_workflow_guard`**:
-     * Kiểm tra trạng thái tiền đề: Nếu trạng thái trước đó **chưa phải là `completed`** $\rightarrow$ `ROLLBACK` và ném lỗi `50004: Phiếu sửa chữa phải ở trạng thái [completed] trước khi bàn giao!`.
-     * Tự động cập nhật `completed_at = GETDATE()` (nếu trước đó chưa có).
-  2. **Database Trigger `trg_tickets_audit_history`**:
-     * Đóng chu trình vòng đời phiếu bằng bản ghi audit cuối cùng với `new_status = 'delivered'`.
+### 6.4 Phân Hệ Quản Lý / Giám Đốc (`/dashboard`)
+* **Thao tác 9: Xem cảnh báo phiếu trễ hạn SLA**
+  * Thao tác: Mở trang `/dashboard` hoặc bấm nút **"Làm mới số liệu"**
+  * REST API: `GET /api/reports/delayed-tickets?days=14`
+  * Thủ tục: `dbo.sp_alert_delayed_tickets`
+  * Cursor: **`cur_delayed_tickets`** (duyệt tuần tự từng phiếu vi phạm SLA > 14 ngày).
+* **Thao tác 10: Quét đối soát toàn bộ doanh thu & tự sửa sai lệch**
+  * Nút bấm: **"Bắt đầu quét đối soát"** (trong Invoice Audit Modal)
+  * REST API: `POST /api/reports/audit-invoices` với body `{ autoFix: boolean }`
+  * Thủ tục: `dbo.sp_audit_invoices`
+  * Cursor: **`cur_invoices`** (duyệt 100% hóa đơn trong CSDL).
+  * Function: `dbo.fn_calculate_parts_total`.
 
 ---
 
-### Quy Trình 8: Giám Đốc Theo Dõi Cảnh Báo Trễ Hạn SLA Bằng Con Trỏ Database Cursor
-* **Màn hình giao diện**: Bảng điều khiển Giám đốc (`/dashboard`) $\rightarrow$ Card **"Phiếu trễ hạn cam kết SLA (>14 ngày)"**.
-* **Thao tác người dùng**:
-  * Quản lý mở Dashboard hoặc bấm nút **"Làm mới số liệu"** (icon vòng xoay).
-* **REST API kích hoạt**: `GET /api/reports/delayed-tickets?days=14`
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_alert_delayed_tickets` (Sử dụng Cursor T-SQL)**:
-     * Khai báo con trỏ:
-       ```sql
-       DECLARE cur_delayed_tickets CURSOR LOCAL FAST_FORWARD FOR
-       SELECT id, received_at, status, customer_id, technician_id
-       FROM tickets
-       WHERE status NOT IN ('completed', 'delivered', 'cancelled')
-         AND DATEDIFF(day, received_at, GETDATE()) > @delay_days;
-       ```
-     * Vòng lặp `WHILE @@FETCH_STATUS = 0` duyệt tuần tự qua từng phiếu vi phạm SLA, kết nối thông tin thiết bị, khách hàng và KTV phụ trách.
-     * Tính toán chính xác số ngày trễ (`delayed_days`) và nạp vào biến bảng `@delayed_tickets`.
-     * Trả về dataset dạng bảng cho Web API hiển thị danh sách cảnh báo màu đỏ kèm thanh tiến trình.
+### 6.5 Phân Hệ Khách Hàng Công Khai (`/tra-cuu`)
+* **Thao tác 11: Tra cứu bảo hành & lịch sử sửa chữa**
+  * Nút bấm: **"Tra cứu bảo hành"**
+  * REST API: `GET /api/tickets/public-tracking?phone=...`
+  * Function 1: `dbo.fn_get_device_repair_history` (trả về toàn bộ cây timeline lịch sử sửa chữa).
+  * Function 2: `dbo.fn_is_device_under_warranty` (trả về trạng thái còn/hết hạn bảo hành).
 
 ---
 
-### Quy Trình 9: Kiểm Toán Đối Soát Toàn Bộ Doanh Thu Bằng Cursor
-* **Màn hình giao diện**: Bảng điều khiển (`/dashboard`) $\rightarrow$ Bấm nút **"Đối soát hóa đơn & Doanh thu"** (Mở Invoice Audit Modal).
-* **Thao tác người dùng**:
-  * Bấm nút **"Bắt đầu quét đối soát"** (Tùy chọn tích checkbox *"Tự động sửa sai số nếu phát hiện"*).
-* **REST API kích hoạt**: `POST /api/reports/audit-invoices` với body `{ autoFix: true/false }`.
-* **Đối tượng CSDL được thực thi**:
-  1. **Stored Procedure `dbo.sp_audit_invoices` (Sử dụng Cursor T-SQL)**:
-     * Khai báo con trỏ duyệt 100% hóa đơn trong CSDL:
-       ```sql
-       DECLARE cur_invoices CURSOR LOCAL FAST_FORWARD FOR
-       SELECT id, labor_fee, discount_amount, total_amount FROM invoices;
-       ```
-     * Tại mỗi vòng lặp, SP gọi hàm Scalar Function `dbo.fn_calculate_parts_total(id)`.
-     * Đối chiếu: `@expected_total = MAX(0, labor_fee - discount_amount) + parts_total`.
-     * So sánh với `@current_total`: Nếu phát hiện lệch tiền $\rightarrow$ ghi nhận chi tiết (Mã HĐ, Số tiền hiện tại, Số tiền chuẩn, Chênh lệch).
-     * Nếu `@auto_fix = 1`: Cursor tự động thực thi lệnh `UPDATE invoices SET total_amount = @expected_total` để đồng bộ lại số liệu kế toán chuẩn xác.
-
----
-
-### Quy Trình 10: Khách Hàng Tra Cứu Bảo Hành Công Khai
-* **Màn hình giao diện**: Trang Tra cứu công khai (`/tra-cuu`).
-* **Thao tác người dùng**:
-  * Khách hàng nhập Số điện thoại hoặc Số Serial/IMEI của máy $\rightarrow$ Bấm nút **"Tra cứu bảo hành"**.
-* **REST API kích hoạt**: `GET /api/tickets/public-tracking?phone=...`
-* **Đối tượng CSDL được thực thi**:
-  1. **Table-Valued Function `dbo.fn_get_device_repair_history(@device_id)`**:
-     * Trả về bảng lịch sử sửa chữa đa tầng: Ngày tiếp nhận, Lý do hỏng, Linh kiện thay thế, KTV thực hiện, Trạng thái bàn giao.
-  2. **Scalar Function `dbo.fn_is_device_under_warranty(@device_id, GETDATE())`**:
-     * Tính toán thời hạn bảo hành thực tế.
-     * Trả về cờ `1` (Còn bảo hành) hoặc `0` (Hết bảo hành) để giao diện hiển thị huy hiệu xanh/vàng tương ứng.
-
----
-
-## 3. Bảng Tra Cứu Nhanh Mã Lỗi Trigger T-SQL (Custom Error Codes)
-
-Khi người dùng thao tác sai quy trình nghiệp vụ trên Dashboard, Database Engine sẽ hủy bỏ giao dịch (`ROLLBACK TRANSACTION`) và trả về các mã lỗi sau:
+## 7. Bảng Tra Cứu Nhanh Mã Lỗi Trigger T-SQL (Custom Error Codes)
 
 | Mã Lỗi THROW | Trigger Phát Sinh | HTTP Status Code | Nguyên Nhân Kích Hoạt | Thông Báo Trên Giao Diện Toast |
 |:---:|:---|:---:|:---|:---|
