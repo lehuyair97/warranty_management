@@ -49,6 +49,7 @@ CREATE TABLE employees (
     id INT IDENTITY(1,1) CONSTRAINT pk_employees PRIMARY KEY,
     username NVARCHAR(50) NOT NULL CONSTRAINT uq_employees_username UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    refresh_token_hash VARCHAR(255) NULL,
     full_name NVARCHAR(100) NOT NULL,
     role VARCHAR(20) NOT NULL CONSTRAINT ck_employees_role CHECK (role IN ('receptionist', 'technician', 'manager')),
     phone_number VARCHAR(15) NULL,
@@ -785,7 +786,7 @@ GO
 
 -- 6.2. Seed Employees (20 rows)
 -- Password for all seed accounts is '123456'
-DECLARE @pwd VARCHAR(255) = '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6xNekdHgTGmrpHEfIoxm';
+DECLARE @pwd VARCHAR(255) = '$2a$10$SlADIIkluEMU01h7edYt8ub1buSSTrW5gfTiS96fDMVLKrlUSwsEm';
 
 INSERT INTO employees (username, password_hash, full_name, role, phone_number, email) VALUES
 ('admin', @pwd, N'Admin Manager', 'manager', '0281000000', 'admin@warranty.vn'),

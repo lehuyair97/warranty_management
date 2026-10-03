@@ -39,7 +39,22 @@ async function bootstrap() {
 
   // Enable CORS with credentials for HttpOnly cookie transfer
   app.enableCors({
-    origin: corsOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const isAllowed =
+        corsOrigin.includes(origin) ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin) ||
+        /^https?:\/\/([a-z0-9-]+\.)?warranty\.com(:[0-9]+)?$/.test(origin);
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        logger.warn(`Blocked CORS request from origin: ${origin}`);
+        callback(new Error(`CORS origin not allowed: ${origin}`), false);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Cookie'],

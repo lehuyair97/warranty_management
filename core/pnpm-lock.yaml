@@ -53,6 +53,9 @@ importers:
       class-validator:
         specifier: ^0.14.1
         version: 0.14.4
+      fastify:
+        specifier: ^4.28.1
+        version: 4.28.1
       mssql:
         specifier: ^11.0.1
         version: 11.0.2(supports-color@8.1.1)

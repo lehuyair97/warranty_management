@@ -45,7 +45,8 @@ GO
 -- 5.2. Seed Employees (20 rows)
 IF NOT EXISTS (SELECT 1 FROM employees)
 BEGIN
-    DECLARE @pwd VARCHAR(255) = '$2a$10$vIqqskJtDrtE1OFQqLiaSuYe0uiKGsnr4mpc9VJajcPLlbE9OUzoa';
+    -- Password for all seed accounts is '123456'
+    DECLARE @pwd VARCHAR(255) = '$2a$10$SlADIIkluEMU01h7edYt8ub1buSSTrW5gfTiS96fDMVLKrlUSwsEm';
 
     INSERT INTO employees (username, password_hash, full_name, role, phone_number, email) VALUES
     ('admin', @pwd, N'Admin Manager', 'manager', '0281000000', 'admin@warranty.vn'),

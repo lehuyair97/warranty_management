@@ -19,6 +19,9 @@ Thumbs.db
 *.pem
 *.key
 *.cert
+*.crt
+proxy/certs/*
+!proxy/certs/.gitkeep
 
 # ==========================================
 # Node.js & Package Managers

@@ -3,8 +3,16 @@ import { authActions, authState } from '@/stores/auth.store';
 import { uiActions } from '@/stores/ui.store';
 import { SingleSuccessResponse } from '@/types';
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname.includes('warranty.com')) {
+      return `${window.location.origin}/api`;
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Clean isolated Axios instance dedicated to silent token refresh
@@ -46,9 +54,12 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// 1. Request Interceptor: Injects active Bearer token from Valtio reactive authState
+// 1. Request Interceptor: Injects active Bearer token and handles dynamic domain
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('warranty.com')) {
+      config.baseURL = `${window.location.origin}/api`;
+    }
     const token = authState.accessToken;
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
