@@ -3,6 +3,7 @@ services:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: warranty_mssql
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "${DB_PASSWORD:-Warranty@Pass123}"
@@ -47,6 +48,8 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: warranty_core
+    init: true
+    stop_grace_period: 10s
     restart: unless-stopped
     ports:
       - "${CORE_PORT:-${BACKEND_PORT:-5001}}:5001"
@@ -77,6 +80,8 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: warranty_crm
+    init: true
+    stop_grace_period: 10s
     restart: unless-stopped
     ports:
       - "${CRM_PORT:-${FRONTEND_PORT:-3000}}:3000"

@@ -21,31 +21,32 @@
 ## 2. Chi Tiết Từng Stored Procedure
 
 ### 2.1 `dbo.sp_receive_device` — Tiếp Nhận Thiết Bị Tại Quầy POS
-- **Mục đích**: Lễ tân tạo phiếu mới cho thiết bị khách mang đến.
+- **Mục đích**: Lễ tân (hoặc Quản lý) tạo phiếu mới cho thiết bị khách mang đến.
 - **Ràng buộc nghiệp vụ**:
-  - Kiểm tra xem thiết bị có đang nằm trong một phiếu sửa chữa chưa đóng hay không (trạng thái khác `delivered` và khác `cancelled`).
-  - Nếu thiết bị đang trong quá trình sửa, **chặn ngay** với mã lỗi `50005` để tránh tiếp nhận trùng lặp.
+  - Kiểm tra thiết bị có tồn tại trong hệ thống hay không (ném mã lỗi **`50010`** nếu không tìm thấy).
+  - Kiểm tra nhân viên tạo phiếu phải có vai trò `receptionist` hoặc `manager` (ném mã lỗi **`50011`** nếu vi phạm).
+  - Tự động gọi hàm **`dbo.fn_is_device_under_warranty`**: Nếu thiết bị còn hạn bảo hành và phiếu là `repair`, tự động nâng cấp sang **`warranty`** (miễn phí công).
 - **Tham số**:
   - `@device_id INT`: Mã thiết bị.
-  - `@receptionist_id INT`: Mã nhân viên lễ tân.
-  - `@ticket_type VARCHAR(20)`: `'repair'`, `'warranty'`, hoặc `'re_repair'`.
+  - `@receptionist_id INT`: Mã nhân viên lễ tân / quản lý.
   - `@issue_description NVARCHAR(500)`: Mô tả lỗi từ khách.
-  - `@initial_condition NVARCHAR(200)`: Hiện trạng ngoại quan.
-  - `@accessories NVARCHAR(200)`: Phụ kiện gửi kèm.
-  - `@new_ticket_id INT OUTPUT`: Trả về mã phiếu vừa tạo để xuất biên nhận in.
+  - `@initial_condition NVARCHAR(200) = NULL`: Hiện trạng ngoại quan.
+  - `@accessories NVARCHAR(200) = NULL`: Phụ kiện gửi kèm.
+  - `@ticket_type VARCHAR(20) = 'repair'`: Loại phiếu (`'repair'`, `'warranty'`, hoặc `'re_repair'`).
+  - `@ticket_id INT OUTPUT`: Trả về mã phiếu vừa tạo (`SCOPE_IDENTITY()`).
 
 ```sql
--- Ví dụ gọi thủ tục từ Backend
+-- Ví dụ gọi thủ tục từ Backend NestJS
 DECLARE @NewId INT;
 EXEC dbo.sp_receive_device 
     @device_id = 1, 
     @receptionist_id = 2, 
-    @ticket_type = 'repair', 
     @issue_description = N'Máy không lên nguồn',
     @initial_condition = N'Máy trầy nắp đáy',
     @accessories = N'Sạc 65W',
-    @new_ticket_id = @NewId OUTPUT;
-SELECT @NewId AS TicketId;
+    @ticket_type = 'repair',
+    @ticket_id = @NewId OUTPUT;
+SELECT @NewId AS ticket_id;
 ```
 
 ---

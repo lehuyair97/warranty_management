@@ -135,6 +135,12 @@ sequenceDiagram
   * REST API: `PATCH /api/tickets/:id/process`
   * Thủ tục: `dbo.sp_process_ticket`
   * Trigger: `trg_tickets_workflow_guard` (kiểm tra `technician_id`, ném lỗi `50003` nếu thiếu) & `trg_tickets_audit_history`.
+* **Thao tác 3b: Khởi tạo báo giá / hóa đơn sửa chữa**
+  * Nút bấm: **"Lập hóa đơn"** / **"Tạo báo giá"**
+  * REST API: `POST /api/invoices` với `{ ticketId: number, laborFee: number }`
+  * Thủ tục: `dbo.sp_create_invoice`
+  * Nghiệp vụ: Kiểm tra phiếu tồn tại (lỗi `50030`), tiền công không âm (lỗi `50031`), chưa có hóa đơn chưa thanh toán (lỗi `50032`). Tự động chiết khấu 100% tiền công nếu là phiếu `warranty` hoặc `re_repair`.
+  * Trigger: `trg_invoices_labor_update` (tính toán `total_amount`).
 * **Thao tác 4: Xuất kho linh kiện vào báo giá**
   * Nút bấm: **"Thêm vào báo giá"** (trong modal chẩn đoán)
   * REST API: `POST /api/invoices/:id/items`
@@ -194,7 +200,31 @@ sequenceDiagram
 | Mã Lỗi THROW | Trigger Phát Sinh | HTTP Status Code | Nguyên Nhân Kích Hoạt | Thông Báo Trên Giao Diện Toast |
 |:---:|:---|:---:|:---|:---|
 | **`50001`** | `trg_invoice_items_stock` | `400 Bad Request` | Số lượng linh kiện xuất dùng vượt quá tồn kho khả dụng (`stock_quantity < 0`). | *Không đủ số lượng linh kiện trong kho để xuất sử dụng!* |
-| **`50003`** | `trg_tickets_workflow_guard` | `422 Unprocessable` | Chuyển phiếu sang trạng thái kỹ thuật (`inspecting`, `repairing`...) nhưng chưa phân công KTV (`technician_id IS NULL`). | *Phải phân công kỹ thuật viên trước khi chuyển sang trạng thái này!* |
-| **`50004`** | `trg_tickets_workflow_guard` | `422 Unprocessable` | Vi phạm thứ tự tuyến tính: Chuyển sang `delivered` khi chưa `completed`, hoặc cố ý mở lại phiếu đã bàn giao. | *Phiếu sửa chữa phải ở trạng thái [completed] trước khi bàn giao!* |
-| **`50035`** | `trg_invoice_items_freeze_paid` | `422 Unprocessable` | Thêm, sửa, hoặc xóa dòng linh kiện (`invoice_items`) của hóa đơn đã thanh toán (`paid`). | *Không thể thêm, sửa, hoặc xóa linh kiện của hóa đơn đã thanh toán!* |
-| **`50036`** | `trg_invoices_freeze_paid_amounts` | `422 Unprocessable` | Chỉnh sửa số tiền hoặc cố ý chuyển trạng thái hóa đơn từ `paid` ngược về `unpaid`. | *Hóa đơn đã thanh toán không thể sửa đổi số tiền hoặc đảo ngược trạng thái!* |
+| **`50003`** | `trg_tickets_workflow_guard` | `400 Bad Request` | Chuyển phiếu sang trạng thái kỹ thuật (`inspecting`, `repairing`...) nhưng chưa phân công KTV (`technician_id IS NULL`). | *Phải phân công kỹ thuật viên trước khi chuyển sang trạng thái này!* |
+| **`50004`** | `trg_tickets_workflow_guard` | `400 Bad Request` | Vi phạm thứ tự tuyến tính: Chuyển sang `delivered` khi chưa `completed`, hoặc cố ý mở lại phiếu đã bàn giao. | *Phiếu sửa chữa phải ở trạng thái [completed] trước khi bàn giao!* |
+| **`50035`** | `trg_invoice_items_freeze_paid` | `400 Bad Request` | Thêm, sửa, hoặc xóa dòng linh kiện (`invoice_items`) của hóa đơn đã thanh toán (`paid`). | *Không thể thêm, sửa, hoặc xóa linh kiện của hóa đơn đã thanh toán!* |
+| **`50036`** | `trg_invoices_freeze_paid_amounts` | `400 Bad Request` | Chỉnh sửa số tiền hoặc cố ý chuyển trạng thái hóa đơn từ `paid` ngược về `unpaid`. | *Hóa đơn đã thanh toán không thể sửa đổi số tiền hoặc đảo ngược trạng thái!* |
+
+---
+
+## 8. Bảng Tra Cứu Toàn Bộ Mã Lỗi Stored Procedure (Custom Error Codes)
+
+| Mã Lỗi THROW | Stored Procedure Phát Sinh | HTTP Status Code | Điều Kiện Kích Hoạt Trong SQL Engine | Thông Báo Chuẩn API Backend |
+|:---:|:---|:---:|:---|:---|
+| **`50010`** | `dbo.sp_receive_device` | `404 Not Found` | Không tìm thấy thiết bị (`device_id`) trong bảng `devices`. | *Device not found* |
+| **`50011`** | `dbo.sp_receive_device` | `400 Bad Request` | Nhân viên tiếp nhận không có vai trò `receptionist` hoặc `manager`. | *Invalid receptionist employee* |
+| **`50020`** | `dbo.sp_process_ticket` | `404 Not Found` | Không tìm thấy phiếu sửa chữa (`ticket_id`) trong bảng `tickets`. | *Ticket not found* |
+| **`50021`** | `dbo.sp_process_ticket` | `400 Bad Request` | Trạng thái chuyển giao không nằm trong danh mục trạng thái hợp lệ. | *Invalid ticket status* |
+| **`50022`** | `dbo.sp_process_ticket` | `400 Bad Request` | Nhân viên được gán không có vai trò kỹ thuật viên (`technician`). | *Invalid technician employee* |
+| **`50023`** | `dbo.sp_process_ticket` | `400 Bad Request` | Cố ý chuyển trạng thái kỹ thuật khi chưa gán KTV phụ trách. | *A technician must be assigned before advancing status* |
+| **`50030`** | `dbo.sp_create_invoice` | `404 Not Found` | Không tìm thấy phiếu sửa chữa khi khởi tạo hóa đơn. | *Ticket not found* |
+| **`50031`** | `dbo.sp_create_invoice` | `400 Bad Request` | Tiền công dịch vụ (`labor_fee`) bị nhập số âm (`< 0`). | *Labor fee cannot be negative* |
+| **`50032`** | `dbo.sp_create_invoice` | `409 Conflict` | Đã tồn tại một hóa đơn chưa thanh toán (`unpaid`) gắn với phiếu này. | *An unpaid invoice already exists for this ticket* |
+| **`50040`** | `dbo.sp_add_invoice_part` | `404 Not Found` | Không tìm thấy hóa đơn (`invoice_id`). | *Invoice not found* |
+| **`50041`** | `dbo.sp_add_invoice_part` | `400 Bad Request` | Hóa đơn đã được thanh toán (`status = 'paid'`), không thể thêm linh kiện. | *Cannot add parts to an already paid invoice* |
+| **`50042`** | `dbo.sp_add_invoice_part` | `400 Bad Request` | Số lượng linh kiện yêu cầu xuất kho nhỏ hơn hoặc bằng 0 (`<= 0`). | *Quantity must be greater than zero* |
+| **`50043`** | `dbo.sp_add_invoice_part` | `404 Not Found` | Mã linh kiện (`part_id`) không tồn tại trong kho linh kiện. | *Spare part not found* |
+| **`50044`** | `dbo.sp_add_invoice_part` | `400 Bad Request` | Tồn kho khả dụng của linh kiện không đủ cho số lượng yêu cầu. | *Insufficient stock inventory* |
+| **`50050`** | `dbo.sp_checkout_invoice` | `404 Not Found` | Không tìm thấy hóa đơn cần thanh toán. | *Invoice not found* |
+| **`50051`** | `dbo.sp_checkout_invoice` | `409 Conflict` | Hóa đơn đã được thanh toán từ trước (`status = 'paid'`). | *Invoice is already paid* |
+| **`50052`** | `dbo.sp_checkout_invoice` | `400 Bad Request` | Phiếu chưa ở trạng thái `completed` hoặc `delivered`, chưa được phép thanh toán. | *Checkout only allowed when repair is completed* |

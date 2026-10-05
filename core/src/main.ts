@@ -18,6 +18,9 @@ async function bootstrap() {
     }),
   );
 
+  // Enable graceful shutdown hooks for container lifecycle (SIGTERM, SIGINT)
+  app.enableShutdownHooks();
+
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port', 5001);
   const apiPrefix = configService.get<string>('app.apiPrefix', 'api');
