@@ -24,21 +24,21 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
-  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.MANAGER)
+  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN, EmployeeRole.MANAGER)
   @ApiOperation({ summary: 'List and search customers with pagination' })
   async findAll(@Query() query: PaginationQueryDto) {
     return this.customersService.findAll(query);
   }
 
   @Get('by-phone/:phoneNumber')
-  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.MANAGER)
+  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN, EmployeeRole.MANAGER)
   @ApiOperation({ summary: 'Fast phone number lookup for receptionist desk' })
   async findByPhone(@Param('phoneNumber') phoneNumber: string) {
     return this.customersService.findByPhone(phoneNumber);
   }
 
   @Get(':id')
-  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.MANAGER)
+  @Roles(EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN, EmployeeRole.MANAGER)
   @ApiOperation({ summary: 'Get customer profile and owned devices' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.customersService.findOne(id);

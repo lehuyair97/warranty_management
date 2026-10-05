@@ -74,7 +74,7 @@ export class TicketsController {
   }
 
   @Patch(':id/assign-technician')
-  @Roles(EmployeeRole.MANAGER, EmployeeRole.RECEPTIONIST)
+  @Roles(EmployeeRole.MANAGER, EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN)
   @ApiOperation({ summary: 'Assign a technician to ticket' })
   async assignTechnician(
     @Param('id', ParseIntPipe) id: number,
@@ -84,7 +84,7 @@ export class TicketsController {
   }
 
   @Patch(':id/process')
-  @Roles(EmployeeRole.TECHNICIAN, EmployeeRole.MANAGER)
+  @Roles(EmployeeRole.MANAGER, EmployeeRole.RECEPTIONIST, EmployeeRole.TECHNICIAN)
   @ApiOperation({ summary: 'Update ticket diagnosis, repair notes, cost estimate, or lifecycle status' })
   async processTicket(
     @Param('id', ParseIntPipe) id: number,
