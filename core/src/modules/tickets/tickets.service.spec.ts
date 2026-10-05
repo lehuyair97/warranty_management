@@ -162,11 +162,55 @@ describe('TicketsService', () => {
     });
   });
 
+  describe('assignTechnician', () => {
+    it('should allow manager or receptionist to assign technician', async () => {
+      mockTicketRepo.findOne
+        .mockResolvedValueOnce({ id: 1, status: TicketStatus.RECEIVED, technicianId: null })
+        .mockResolvedValueOnce({ id: 1, status: TicketStatus.INSPECTING, technicianId: 7 });
+
+      mockEmployeeRepo.findOne.mockResolvedValue({ id: 7, role: EmployeeRole.TECHNICIAN, isActive: true });
+      mockDataSource.query.mockResolvedValue([]);
+
+      const result = await service.assignTechnician(
+        1,
+        { technicianId: 7 },
+        { id: 2, username: 'reception1', role: EmployeeRole.RECEPTIONIST, full_name: 'Receptionist' },
+      );
+
+      expect(mockDataSource.query).toHaveBeenCalled();
+      expect(result.id).toBe(1);
+    });
+
+    it('should forbid technician from assigning another technician', async () => {
+      mockTicketRepo.findOne.mockResolvedValue({ id: 1, status: TicketStatus.RECEIVED, technicianId: null });
+
+      await expect(
+        service.assignTechnician(
+          1,
+          { technicianId: 8 },
+          { id: 7, username: 'tech1', role: EmployeeRole.TECHNICIAN, full_name: 'Tech 1' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should forbid technician from reassigning an already assigned ticket', async () => {
+      mockTicketRepo.findOne.mockResolvedValue({ id: 1, status: TicketStatus.INSPECTING, technicianId: 7 });
+
+      await expect(
+        service.assignTechnician(
+          1,
+          { technicianId: 7 },
+          { id: 7, username: 'tech1', role: EmployeeRole.TECHNICIAN, full_name: 'Tech 1' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
   describe('processTicket', () => {
     it('should execute procedure when transition is valid', async () => {
       mockTicketRepo.findOne
-        .mockResolvedValueOnce({ id: 1, status: TicketStatus.RECEIVED })
-        .mockResolvedValueOnce({ id: 1, status: TicketStatus.INSPECTING });
+        .mockResolvedValueOnce({ id: 1, status: TicketStatus.RECEIVED, technicianId: null })
+        .mockResolvedValueOnce({ id: 1, status: TicketStatus.INSPECTING, technicianId: 3 });
 
       mockEmployeeRepo.findOne.mockResolvedValue({ id: 3, role: EmployeeRole.TECHNICIAN, isActive: true });
       mockDataSource.query.mockResolvedValue([]);
@@ -182,13 +226,25 @@ describe('TicketsService', () => {
     });
 
     it('should reject invalid status transition', async () => {
-      mockTicketRepo.findOne.mockResolvedValue({ id: 1, status: TicketStatus.RECEIVED });
+      mockTicketRepo.findOne.mockResolvedValue({ id: 1, status: TicketStatus.RECEIVED, technicianId: null });
 
       await expect(
         service.processTicket(1, {
           status: TicketStatus.DELIVERED,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should forbid technician from modifying another technician ticket', async () => {
+      mockTicketRepo.findOne.mockResolvedValue({ id: 1, status: TicketStatus.INSPECTING, technicianId: 8 });
+
+      await expect(
+        service.processTicket(
+          1,
+          { status: TicketStatus.REPAIRING },
+          { id: 7, username: 'tech1', role: EmployeeRole.TECHNICIAN, full_name: 'Tech 1' },
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

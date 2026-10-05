@@ -1,4 +1,4 @@
-import { TicketStatus } from '../constants';
+import { EmployeeRole, TicketStatus } from '../constants';
 
 /**
  * Valid state transition map for repair tickets.
@@ -95,5 +95,77 @@ export function maskPhoneNumber(phone: string): string {
   const prefix = phone.slice(0, 2);
   const suffix = phone.slice(-4);
   return `${prefix}****${suffix}`;
+}
+
+export interface UserRolePayload {
+  id: number;
+  role: EmployeeRole;
+}
+
+/**
+ * Validates role-based permissions when assigning or reassigning a technician to a ticket.
+ * - Receptionists and Managers have full authority to assign or reassign any technician.
+ * - Technicians can ONLY self-assign unassigned tickets. Once assigned, technicians cannot reassign.
+ * @returns Human-friendly error message if forbidden, or null if valid.
+ */
+export function checkTechnicianAssignmentViolation(
+  currentUser: UserRolePayload | undefined,
+  existingTechnicianId: number | null | undefined,
+  targetTechnicianId: number,
+): string | null {
+  if (!currentUser) return null;
+
+  if (currentUser.role === EmployeeRole.TECHNICIAN) {
+    if (targetTechnicianId !== currentUser.id) {
+      return 'Kỹ thuật viên chỉ có thể tự nhận phiếu cho chính mình.';
+    }
+    if (existingTechnicianId !== null && existingTechnicianId !== undefined) {
+      return 'Phiếu này đã có kỹ thuật viên phụ trách. Chỉ Lễ tân hoặc Quản lý mới có quyền điều phối lại.';
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validates role-based permissions when processing or updating ticket progress/diagnosis.
+ * - Receptionists and Managers can process/update any ticket.
+ * - Technicians can only process tickets assigned to themselves (or claim an unassigned ticket).
+ * - Technicians cannot change the assigned technician on an already assigned ticket.
+ * @returns Human-friendly error message if forbidden, or null if valid.
+ */
+export function checkTicketProcessViolation(
+  currentUser: UserRolePayload | undefined,
+  existingTechnicianId: number | null | undefined,
+  targetTechnicianId: number | null | undefined,
+): string | null {
+  if (!currentUser) return null;
+
+  if (currentUser.role === EmployeeRole.TECHNICIAN) {
+    // Cannot modify another technician's ticket
+    if (
+      existingTechnicianId !== null &&
+      existingTechnicianId !== undefined &&
+      existingTechnicianId !== currentUser.id
+    ) {
+      return 'Bạn không phải là kỹ thuật viên được phân công cho phiếu này.';
+    }
+
+    // If targetTechnicianId is explicitly specified in update payload:
+    if (targetTechnicianId !== undefined && targetTechnicianId !== null) {
+      if (targetTechnicianId !== currentUser.id) {
+        return 'Kỹ thuật viên không có quyền thay đổi người phụ trách phiếu sửa chữa.';
+      }
+      if (
+        existingTechnicianId !== null &&
+        existingTechnicianId !== undefined &&
+        targetTechnicianId !== existingTechnicianId
+      ) {
+        return 'Phiếu này đã có kỹ thuật viên phụ trách. Chỉ Lễ tân hoặc Quản lý mới có quyền điều phối lại.';
+      }
+    }
+  }
+
+  return null;
 }
 

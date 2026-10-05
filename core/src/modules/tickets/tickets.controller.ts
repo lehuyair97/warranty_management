@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { EmployeeRole } from '@/common/constants';
-import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { CurrentUser, AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { Public } from '@/common/decorators/public.decorator';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
@@ -79,8 +79,9 @@ export class TicketsController {
   async assignTechnician(
     @Param('id', ParseIntPipe) id: number,
     @Body() assignDto: AssignTechnicianDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
   ) {
-    return this.ticketsService.assignTechnician(id, assignDto);
+    return this.ticketsService.assignTechnician(id, assignDto, currentUser);
   }
 
   @Patch(':id/process')
@@ -89,8 +90,9 @@ export class TicketsController {
   async processTicket(
     @Param('id', ParseIntPipe) id: number,
     @Body() processDto: ProcessTicketDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
   ) {
-    return this.ticketsService.processTicket(id, processDto);
+    return this.ticketsService.processTicket(id, processDto, currentUser);
   }
 
   @Delete(':id')

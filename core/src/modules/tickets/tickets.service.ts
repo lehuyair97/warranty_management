@@ -8,8 +8,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { EmployeeRole, TicketStatus } from '@/common/constants';
 import { PaginatedResultDto } from '@/common/dto/paginated-result.dto';
+import { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import {
   checkCanTransitionStatus,
+  checkTechnicianAssignmentViolation,
+  checkTicketProcessViolation,
   formatTicketCode,
   maskPhoneNumber,
   parseTicketCode,
@@ -212,9 +215,25 @@ export class TicketsService {
 
   /**
    * Assigns a technician to a repair ticket and transitions status to INSPECTING if currently RECEIVED.
+   * Enforces role-based assignment rules:
+   * - Managers & Receptionists can assign or reassign any technician at any time.
+   * - Technicians can only self-assign unassigned tickets. Once assigned, technicians cannot reassign.
    */
-  async assignTechnician(ticketId: number, assignDto: AssignTechnicianDto): Promise<TicketEntity> {
+  async assignTechnician(
+    ticketId: number,
+    assignDto: AssignTechnicianDto,
+    currentUser?: AuthenticatedUser,
+  ): Promise<TicketEntity> {
     const ticket = await this.findOne(ticketId);
+
+    const violation = checkTechnicianAssignmentViolation(
+      currentUser,
+      ticket.technicianId,
+      assignDto.technicianId,
+    );
+    if (violation) {
+      throw new ForbiddenException(violation);
+    }
 
     const technician = await this.employeeRepo.findOne({
       where: { id: assignDto.technicianId, role: EmployeeRole.TECHNICIAN, isActive: true },
@@ -241,8 +260,16 @@ export class TicketsService {
 
   /**
    * Updates technical diagnosis, repair solution, quote estimate, and advances lifecycle status.
+   * Enforces role-based update rules:
+   * - Managers & Receptionists can process/update any ticket and assign/reassign technicians.
+   * - Technicians can only update their own tickets (or claim unassigned ones).
+   * - Technicians cannot change the assigned technician on an already assigned ticket.
    */
-  async processTicket(ticketId: number, processDto: ProcessTicketDto): Promise<TicketEntity> {
+  async processTicket(
+    ticketId: number,
+    processDto: ProcessTicketDto,
+    currentUser?: AuthenticatedUser,
+  ): Promise<TicketEntity> {
     const ticket = await this.findOne(ticketId);
 
     const canTransition = checkCanTransitionStatus(ticket.status, processDto.status);
@@ -250,6 +277,15 @@ export class TicketsService {
       throw new BadRequestException(
         `Invalid status transition from '${ticket.status}' to '${processDto.status}'`,
       );
+    }
+
+    const violation = checkTicketProcessViolation(
+      currentUser,
+      ticket.technicianId,
+      processDto.technicianId,
+    );
+    if (violation) {
+      throw new ForbiddenException(violation);
     }
 
     if (processDto.technicianId) {

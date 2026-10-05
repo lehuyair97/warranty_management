@@ -1,6 +1,8 @@
-import { TicketStatus } from '../constants';
+import { EmployeeRole, TicketStatus } from '../constants';
 import {
   checkCanTransitionStatus,
+  checkTechnicianAssignmentViolation,
+  checkTicketProcessViolation,
   formatTicketCode,
   maskPhoneNumber,
   parseTicketCode,
@@ -62,4 +64,65 @@ describe('TicketFlowHelper - Code & Phone Utilities', () => {
     expect(maskPhoneNumber('123')).toBe('123');
   });
 });
+
+describe('TicketFlowHelper - Assignment & Process Role Rules', () => {
+  const manager = { id: 1, role: EmployeeRole.MANAGER };
+  const receptionist = { id: 2, role: EmployeeRole.RECEPTIONIST };
+  const tech1 = { id: 7, role: EmployeeRole.TECHNICIAN };
+  const tech2 = { id: 8, role: EmployeeRole.TECHNICIAN };
+
+  describe('checkTechnicianAssignmentViolation', () => {
+    it('allows managers and receptionists to assign any technician anytime', () => {
+      expect(checkTechnicianAssignmentViolation(manager, null, 7)).toBeNull();
+      expect(checkTechnicianAssignmentViolation(manager, 7, 8)).toBeNull();
+      expect(checkTechnicianAssignmentViolation(receptionist, null, 7)).toBeNull();
+      expect(checkTechnicianAssignmentViolation(receptionist, 7, 8)).toBeNull();
+    });
+
+    it('allows a technician to self-assign an unassigned ticket', () => {
+      expect(checkTechnicianAssignmentViolation(tech1, null, 7)).toBeNull();
+      expect(checkTechnicianAssignmentViolation(tech1, undefined, 7)).toBeNull();
+    });
+
+    it('forbids a technician from assigning tickets to another technician', () => {
+      expect(checkTechnicianAssignmentViolation(tech1, null, 8)).toBe(
+        'Kỹ thuật viên chỉ có thể tự nhận phiếu cho chính mình.',
+      );
+    });
+
+    it('forbids a technician from reassigning an already assigned ticket', () => {
+      expect(checkTechnicianAssignmentViolation(tech1, 7, 7)).toBe(
+        'Phiếu này đã có kỹ thuật viên phụ trách. Chỉ Lễ tân hoặc Quản lý mới có quyền điều phối lại.',
+      );
+      expect(checkTechnicianAssignmentViolation(tech1, 8, 7)).toBe(
+        'Phiếu này đã có kỹ thuật viên phụ trách. Chỉ Lễ tân hoặc Quản lý mới có quyền điều phối lại.',
+      );
+    });
+  });
+
+  describe('checkTicketProcessViolation', () => {
+    it('allows managers and receptionists to process and update any ticket', () => {
+      expect(checkTicketProcessViolation(manager, 7, 8)).toBeNull();
+      expect(checkTicketProcessViolation(receptionist, null, 7)).toBeNull();
+    });
+
+    it('allows technician to process their assigned ticket', () => {
+      expect(checkTicketProcessViolation(tech1, 7, undefined)).toBeNull();
+      expect(checkTicketProcessViolation(tech1, 7, 7)).toBeNull();
+    });
+
+    it('forbids technician from processing tickets assigned to another technician', () => {
+      expect(checkTicketProcessViolation(tech1, 8, undefined)).toBe(
+        'Bạn không phải là kỹ thuật viên được phân công cho phiếu này.',
+      );
+    });
+
+    it('forbids technician from changing technician during process update', () => {
+      expect(checkTicketProcessViolation(tech1, 7, 8)).toBe(
+        'Kỹ thuật viên không có quyền thay đổi người phụ trách phiếu sửa chữa.',
+      );
+    });
+  });
+});
+
 
