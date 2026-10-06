@@ -1,18 +1,23 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   IconAlertTriangle,
+  IconDownload,
   IconPackage,
   IconPlus,
+  IconUpload,
 } from '@/assets/icon';
 import { DataTable, PageContainer, PageHeader } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AddPartModal } from '@/features/inventory/components/AddPartModal';
 import { EditPartModal } from '@/features/inventory/components/EditPartModal';
+import { ImportPartsModal } from '@/features/inventory/components/ImportPartsModal';
 import { getPartColumns } from '@/features/inventory/config/parts.columns';
 import { useInventoryCatalog } from '@/features/inventory/hooks/useInventoryCatalog';
+import { databaseAdminService } from '@/services/database-admin.service';
+import { uiActions } from '@/stores/ui.store';
 
 /**
  * Inventory Directory Controller Screen (~70 lines)
@@ -41,6 +46,29 @@ export default function InventoryPage() {
     onAddSubmit,
     isCreating,
   } = useInventoryCatalog();
+
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportParts = async () => {
+    setIsExporting(true);
+    try {
+      await databaseAdminService.exportTable('parts', 'csv');
+      uiActions.addToast({
+        type: 'success',
+        title: 'Xuất dữ liệu thành công',
+        message: 'File CSV linh kiện đang được tải về thiết bị của bạn.',
+      });
+    } catch (error) {
+      uiActions.addToast({
+        type: 'error',
+        title: 'Xuất dữ liệu thất bại',
+        message: (error as Error).message || 'Có lỗi xảy ra khi xuất dữ liệu!',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const columns = useMemo(
     () =>
@@ -75,15 +103,36 @@ export default function InventoryPage() {
         onRefresh={refetch}
         isRefreshing={isLoading}
         actions={
-          isManager && (
+          <div className="flex items-center gap-2">
             <Button
+              variant="outline"
               size="sm"
-              leftIcon={<IconPlus className="w-4 h-4" />}
-              onClick={() => setAddModalOpen(true)}
+              leftIcon={<IconDownload className="w-4 h-4" />}
+              onClick={handleExportParts}
+              isLoading={isExporting}
             >
-              Thêm linh kiện
+              Xuất CSV
             </Button>
-          )
+            {isManager && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<IconUpload className="w-4 h-4" />}
+                  onClick={() => setImportModalOpen(true)}
+                >
+                  Nhập CSV (Bulk)
+                </Button>
+                <Button
+                  size="sm"
+                  leftIcon={<IconPlus className="w-4 h-4" />}
+                  onClick={() => setAddModalOpen(true)}
+                >
+                  Thêm linh kiện
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -114,6 +163,12 @@ export default function InventoryPage() {
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         part={selectedEditPart}
+      />
+
+      <ImportPartsModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onSuccess={refetch}
       />
     </PageContainer>
   );

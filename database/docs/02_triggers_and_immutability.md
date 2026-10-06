@@ -7,21 +7,22 @@
 
 ## 1. Bảng Tổng Hợp 7 Database Triggers
 
-| # | Tên Trigger | Bảng Tác Động | Sự Kiện Kích Hoạt | Mã Lỗi THROW | Mục Đích Nghiệp Vụ |
-|:---:|:---|:---|:---|:---:|:---|
-| 1 | `trg_invoice_items_stock` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | **`50001`** | Tự động cộng/trừ tồn kho `parts.stock_quantity`, hủy giao dịch nếu không đủ hàng xuất. |
-| 2 | `trg_invoices_total_amount` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | — | Tự động tính toán lại `invoices.total_amount` khi danh mục linh kiện biến động. |
-| 3 | `trg_invoices_labor_update` | `invoices` | `AFTER INSERT, UPDATE` | — | Tự động cập nhật `total_amount` khi tiền công (`labor_fee`) hoặc chiết khấu (`discount_amount`) thay đổi. |
-| 4 | `trg_tickets_workflow_guard` | `tickets` | `AFTER INSERT, UPDATE` | **`50003`**<br/>**`50004`** | Bảo vệ luồng trạng thái tuyến tính, bắt buộc phân công KTV khi sửa và tự động điền `completed_at`. |
-| 5 | `trg_tickets_audit_history` | `tickets` | `AFTER INSERT, UPDATE` | — | Tự động bắt sự kiện đổi trạng thái và ghi vết lịch sử vào bảng `ticket_status_history`. |
-| 6 | `trg_invoice_items_freeze_paid` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | **`50035`** | **Khóa tài chính cấp dòng**: Cấm tuyệt đối thêm, bớt hoặc sửa linh kiện của hóa đơn đã thanh toán (`paid`). |
-| 7 | `trg_invoices_freeze_paid_amounts` | `invoices` | `AFTER UPDATE` | **`50036`** | **Khóa tài chính cấp hóa đơn**: Cấm sửa đổi số tiền và cấm đảo ngược trạng thái hóa đơn từ `paid` về `unpaid`. |
+| # | Tên Trigger | Bảng Tác Động | Sự Kiện Kích Hoạt | URL Trực Quan (Giao Diện) | Trường Tác Động (`UI Label` ⟷ `db_field`) | Mã Lỗi THROW | Mục Đích Nghiệp Vụ |
+|:---:|:---|:---|:---|:---|:---|:---:|:---|
+| 1 | `trg_invoice_items_stock` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician) | • **`[Linh kiện]`** (`invoice_items.part_id`)<br/>• **`[Số lượng]`** (`invoice_items.quantity`)<br/>• **`[Tồn kho]`** (`parts.stock_quantity`) | **`50001`** | Tự động cộng/trừ tồn kho `parts.stock_quantity`, hủy giao dịch nếu không đủ hàng xuất. |
+| 2 | `trg_invoices_total_amount` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | [Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier)<br/>[Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician) | • **`[Linh kiện]`** (`invoice_items.part_id`)<br/>• **`[Số lượng]`** (`invoice_items.quantity`)<br/>• **`[Tổng tiền]`** (`invoices.total_amount`) | — | Tự động tính toán lại `invoices.total_amount` khi danh mục linh kiện biến động. |
+| 3 | `trg_invoices_labor_update` | `invoices` | `AFTER INSERT, UPDATE` | [Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier)<br/>[Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician) | • **`[Tiền công]`** (`invoices.labor_fee`)<br/>• **`[Chiết khấu]`** (`invoices.discount_amount`)<br/>• **`[Tổng tiền]`** (`invoices.total_amount`) | — | Tự động cập nhật `total_amount` khi tiền công hoặc chiết khấu thay đổi. |
+| 4 | `trg_tickets_workflow_guard` | `tickets` | `AFTER INSERT, UPDATE` | [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician)<br/>[Tiếp nhận: `http://localhost:3000/reception`](http://localhost:3000/reception) | • **`[Trạng thái]`** (`tickets.status`)<br/>• **`[KTV phụ trách]`** (`tickets.technician_id`)<br/>• **`[Thời gian hoàn tất]`** (`tickets.completed_at`) | **`50003`**<br/>**`50004`** | Bảo vệ luồng trạng thái tuyến tính, bắt buộc phân công KTV khi sửa và tự động điền `completed_at`. |
+| 5 | `trg_tickets_audit_history` | `tickets` | `AFTER INSERT, UPDATE` | [Danh sách phiếu: `http://localhost:3000/tickets`](http://localhost:3000/tickets)<br/>[Tiếp nhận: `http://localhost:3000/reception`](http://localhost:3000/reception) | • **`[Mã phiếu]`** (`ticket_status_history.ticket_id`)<br/>• **`[Trạng thái cũ / mới]`** (`old_status`, `new_status`)<br/>• **`[Thời điểm]`** (`created_at`) | — | Tự động bắt sự kiện đổi trạng thái và ghi vết lịch sử vào bảng `ticket_status_history`. |
+| 6 | `trg_invoice_items_freeze_paid` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | [Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier) | • **`[Trạng thái hóa đơn]`** (`invoices.status = 'paid'`)<br/>• Bảng kê **`[Linh kiện]`** (`invoice_items`) | **`50035`** | **Khóa tài chính cấp dòng**: Cấm tuyệt đối thêm, bớt hoặc sửa linh kiện của hóa đơn đã thanh toán (`paid`). |
+| 7 | `trg_invoices_freeze_paid_amounts` | `invoices` | `AFTER UPDATE` | [Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier) | • **`[Tiền công]`** (`labor_fee`)<br/>• **`[Chiết khấu]`** (`discount_amount`)<br/>• **`[Tổng tiền]`** (`total_amount`)<br/>• **`[Trạng thái]`** (`status = 'paid'`) | **`50036`** | **Khóa tài chính cấp hóa đơn**: Cấm sửa đổi số tiền và cấm đảo ngược trạng thái hóa đơn từ `paid` về `unpaid`. |
 
 ---
 
 ## 2. Phân Tích Kỹ Thuật Từng Trigger
 
 ### 2.1 Trigger `trg_invoice_items_stock` — Kiểm Soát Xuất/Nhập Kho Tự Động
+* **URL Giao diện thử nghiệm:** [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician)
 - **Bảng**: `dbo.invoice_items`
 - **Sự kiện**: `AFTER INSERT, UPDATE, DELETE`
 - **Logic thực thi**:
@@ -42,6 +43,7 @@ END;
 ---
 
 ### 2.2 Trigger `trg_invoices_total_amount` & `trg_invoices_labor_update` — Tự Động Tính Tiền Hóa Đơn
+* **URL Giao diện thử nghiệm:** [Quầy Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier) & [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician)
 - **Bảng**: `dbo.invoice_items` và `dbo.invoices`
 - **Logic thực thi**:
   - Không dựa vào ứng dụng FE/BE tính toán tổng tiền (nhằm chống giả mạo request).
@@ -52,6 +54,7 @@ END;
 ---
 
 ### 2.3 Trigger `trg_tickets_workflow_guard` — State Machine & Tuân Thủ Quy Trình
+* **URL Giao diện thử nghiệm:** [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician) & [Bàn tiếp nhận: `http://localhost:3000/reception`](http://localhost:3000/reception)
 - **Bảng**: `dbo.tickets`
 - **Sự kiện**: `AFTER INSERT, UPDATE`
 - **Luật kiểm soát (Business Rules)**:
@@ -66,6 +69,7 @@ END;
 ---
 
 ### 2.4 Trigger `trg_tickets_audit_history` — Giám Sát Vết Lịch Sử Phiếu
+* **URL Giao diện thử nghiệm:** [Danh sách phiếu sửa: `http://localhost:3000/tickets`](http://localhost:3000/tickets)
 - **Bảng**: `dbo.tickets`
 - **Sự kiện**: `AFTER INSERT, UPDATE`
 - **Logic thực thi**:
@@ -75,6 +79,7 @@ END;
 ---
 
 ### 2.5 Cặp Trigger "Bất Biến Tài Chính" (Financial Immutability)
+* **URL Giao diện thử nghiệm:** [Quầy Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier) (Nút "$ Thanh toán")
 
 > [!IMPORTANT]
 > **Đây là tính năng chuẩn ERP/Kế toán doanh nghiệp cao cấp nhất trong hệ thống:**

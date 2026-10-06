@@ -7,6 +7,7 @@ import { useSnapshot } from 'valtio';
 import {
   IconClipboardList,
   IconCreditCard,
+  IconDatabase,
   IconFileText,
   IconHome,
   IconPackage,
@@ -64,6 +65,12 @@ const NAV_ITEMS: NavItem[] = [
     name: 'Quản lý nhân sự',
     href: '/employees',
     icon: <IconUsers className="w-5 h-5" />,
+    roles: [EmployeeRole.MANAGER],
+  },
+  {
+    name: 'Quản trị CSDL (Data & Backup)',
+    href: '/database',
+    icon: <IconDatabase className="w-5 h-5" />,
     roles: [EmployeeRole.MANAGER],
   },
 ];

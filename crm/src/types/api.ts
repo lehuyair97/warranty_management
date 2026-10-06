@@ -323,6 +323,40 @@ export interface AuditInvoicesResult {
 }
 
 /**
+ * Database backup file metadata.
+ */
+export interface BackupItem {
+  fileName: string;
+  sizeMb: number;
+  createdAt: string;
+}
+
+/**
+ * Result of native SQL Server full database backup.
+ */
+export interface BackupDatabaseResult {
+  fileName: string;
+  backupPath: string;
+  createdAt: string;
+}
+
+/**
+ * Result of native database restore operation.
+ */
+export interface RestoreDatabaseResult {
+  message: string;
+  restoredFrom: string;
+}
+
+/**
+ * Result of bulk data import operation.
+ */
+export interface BulkImportResult {
+  rowsAffected: number;
+  totalRowsRead: number;
+}
+
+/**
  * Safe helper to extract error message from unknown catch variables without any.
  */
 export function getErrorMessage(error: unknown, fallback: string = 'Đã có lỗi xảy ra'): string {

@@ -35,6 +35,11 @@ const MSSQL_ERROR_MAP: Record<number, { status: number; message: string }> = {
   50050: { status: HttpStatus.NOT_FOUND, message: 'Invoice not found' },
   50051: { status: HttpStatus.CONFLICT, message: 'Invoice is already paid' },
   50052: { status: HttpStatus.BAD_REQUEST, message: 'Checkout only allowed when repair is completed' },
+  50060: { status: HttpStatus.BAD_REQUEST, message: 'CSV file path cannot be empty' },
+  50061: { status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Database backup operation failed' },
+  50062: { status: HttpStatus.BAD_REQUEST, message: 'Bulk import execution failed' },
+  50063: { status: HttpStatus.BAD_REQUEST, message: 'Backup path cannot be empty' },
+  50064: { status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Database restore operation failed' },
 };
 
 /**

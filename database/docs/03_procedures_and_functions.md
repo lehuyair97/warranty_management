@@ -6,15 +6,19 @@
 
 ## 1. Bảng Tổng Hợp 7 Stored Procedures
 
-| Tên Procedure | Tham Số Chính | Chức Năng Nghiệp Vụ | Đảm Bảo Giao Dịch (ACID) |
-|:---|:---|:---|:---:|
-| `sp_receive_device` | `@device_id`, `@receptionist_id`, `@ticket_type`, `@issue_description`... | Tiếp nhận máy tại quầy POS, chặn trùng phiếu active. | `TRANSACTION` |
-| `sp_process_ticket` | `@ticket_id`, `@technician_id`, `@status`, `@fault_cause`, `@repair_solution`... | Bàn KTV cập nhật chẩn đoán, chi phí và chuyển trạng thái. | Cập nhật nguyên tử |
-| `sp_create_invoice` | `@ticket_id`, `@labor_fee` | Khởi tạo hóa đơn, tự chiết khấu 100% tiền công nếu bảo hành. | `TRANSACTION` |
-| `sp_add_invoice_part` | `@invoice_id`, `@part_id`, `@quantity` | Gắn linh kiện vào phiếu, tự gộp số lượng nếu đã có dòng cũ. | Trigger bảo vệ kho |
-| `sp_checkout_invoice` | `@invoice_id`, `@payment_method` | Thanh toán hóa đơn và tự động giao máy (`delivered`). | `TRANSACTION` |
-| `sp_audit_invoices` | `@auto_fix BIT = 0` | **Cursor T-SQL**: Quét toàn bộ hóa đơn, đối soát và tự sửa sai số. | `CURSOR` |
-| `sp_alert_delayed_tickets` | `@delay_days INT = 14` | **Cursor T-SQL**: Duyệt tuần tự các phiếu quá hạn SLA, trả về dataset cho Web API. | `CURSOR` |
+| Tên Procedure | Tham Số Chính | Chức Năng Nghiệp Vụ | URL Giao Diện Trực Quan | Đảm Bảo Giao Dịch (ACID) |
+|:---|:---|:---|:---|:---:|
+| `sp_receive_device` | `@device_id`, `@receptionist_id`, `@ticket_type`, `@issue_description`... | Tiếp nhận máy tại quầy POS, chặn trùng phiếu active. | [Tiếp nhận: `http://localhost:3000/reception`](http://localhost:3000/reception) | `TRANSACTION` |
+| `sp_process_ticket` | `@ticket_id`, `@technician_id`, `@status`, `@fault_cause`, `@repair_solution`... | Bàn KTV cập nhật chẩn đoán, chi phí và chuyển trạng thái. | [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician) | Cập nhật nguyên tử |
+| `sp_create_invoice` | `@ticket_id`, `@labor_fee` | Khởi tạo hóa đơn, tự chiết khấu 100% tiền công nếu bảo hành. | [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician)<br/>[Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier) | `TRANSACTION` |
+| `sp_add_invoice_part` | `@invoice_id`, `@part_id`, `@quantity` | Gắn linh kiện vào phiếu, tự gộp số lượng nếu đã có dòng cũ. | [Bàn kỹ thuật: `http://localhost:3000/technician`](http://localhost:3000/technician) | Trigger bảo vệ kho |
+| `sp_checkout_invoice` | `@invoice_id`, `@payment_method` | Thanh toán hóa đơn và tự động giao máy (`delivered`). | [Thu ngân: `http://localhost:3000/cashier`](http://localhost:3000/cashier) | `TRANSACTION` |
+| `sp_audit_invoices` | `@auto_fix BIT = 0` | **Cursor T-SQL**: Quét toàn bộ hóa đơn, đối soát và tự sửa sai số. | [Dashboard: `http://localhost:3000/dashboard`](http://localhost:3000/dashboard) | `CURSOR` |
+| `sp_alert_delayed_tickets` | `@delay_days INT = 14` | **Cursor T-SQL**: Duyệt tuần tự các phiếu quá hạn SLA, trả về dataset cho Web API. | [Dashboard: `http://localhost:3000/dashboard`](http://localhost:3000/dashboard) | `CURSOR` |
+| `sp_backup_database` | `@backup_dir`, `@file_name` | Sao lưu vật lý CSDL nguyên khối nén ra file `.bak`. | [Quản trị CSDL: `http://localhost:3000/database`](http://localhost:3000/database) | File I/O Server |
+| `sp_restore_database` | `@backup_path` | Đưa DB về `SINGLE_USER`, khôi phục từ snapshot `.bak`. | [Quản trị CSDL: `http://localhost:3000/database`](http://localhost:3000/database) | Session Isolation |
+| `sp_bulk_import_parts` | `@csv_file_path` | `BULK INSERT` nạp linh kiện tốc độ cao, `MERGE` kho. | [Kho linh kiện: `http://localhost:3000/inventory`](http://localhost:3000/inventory) | `BULK INSERT` |
+| `sp_bulk_import_tickets` | `@csv_file_path`, `@receptionist_id` | `BULK INSERT` nạp phiếu sửa chữa hàng loạt trạng thái `received`. | [Phiếu sửa: `http://localhost:3000/tickets`](http://localhost:3000/tickets) | `BULK INSERT` |
 
 ---
 
@@ -34,20 +38,33 @@
   - `@accessories NVARCHAR(200) = NULL`: Phụ kiện gửi kèm.
   - `@ticket_type VARCHAR(20) = 'repair'`: Loại phiếu (`'repair'`, `'warranty'`, hoặc `'re_repair'`).
   - `@ticket_id INT OUTPUT`: Trả về mã phiếu vừa tạo (`SCOPE_IDENTITY()`).
-
-```sql
--- Ví dụ gọi thủ tục từ Backend NestJS
-DECLARE @NewId INT;
-EXEC dbo.sp_receive_device 
-    @device_id = 1, 
-    @receptionist_id = 2, 
-    @issue_description = N'Máy không lên nguồn',
-    @initial_condition = N'Máy trầy nắp đáy',
-    @accessories = N'Sạc 65W',
-    @ticket_type = 'repair',
-    @ticket_id = @NewId OUTPUT;
-SELECT @NewId AS ticket_id;
-```
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/tickets/tickets.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/tickets/tickets.service.ts)
+  ```typescript
+  const rawResult: { ticket_id: number }[] = await this.dataSource.query(
+    `
+    DECLARE @out_id INT;
+    EXEC dbo.sp_receive_device
+      @device_id = @0,
+      @receptionist_id = @1,
+      @issue_description = @2,
+      @initial_condition = @3,
+      @accessories = @4,
+      @ticket_type = @5,
+      @ticket_id = @out_id OUTPUT;
+    SELECT @out_id AS ticket_id;
+    `,
+    [
+      createDto.deviceId,
+      receptionistId,
+      createDto.issueDescription,
+      createDto.initialCondition || null,
+      createDto.accessories || null,
+      createDto.ticketType || 'repair',
+    ],
+  );
+  const ticketId = rawResult?.[0]?.ticket_id;
+  ```
 
 ---
 
@@ -64,6 +81,29 @@ SELECT @NewId AS ticket_id;
   - `@repair_solution NVARCHAR(500)`: Phương án khắc phục.
   - `@estimated_cost DECIMAL(18,2)`: Chi phí dự tính.
   - `@note NVARCHAR(500)`: Ghi chú nội bộ.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/tickets/tickets.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/tickets/tickets.service.ts)
+  ```typescript
+  await this.dataSource.query(
+    `
+    EXEC dbo.sp_process_ticket
+      @ticket_id = @0,
+      @status = @1,
+      @technician_id = @2,
+      @fault_cause = @3,
+      @repair_solution = @4,
+      @estimated_cost = @5;
+    `,
+    [
+      ticketId,
+      processDto.status,
+      processDto.technicianId || null,
+      processDto.faultCause || null,
+      processDto.repairSolution || null,
+      processDto.estimatedCost !== undefined ? processDto.estimatedCost : null,
+    ],
+  );
+  ```
 
 ---
 
@@ -77,6 +117,22 @@ SELECT @NewId AS ticket_id;
   - `@ticket_id INT`: Mã phiếu.
   - `@labor_fee DECIMAL(18,2)`: Tiền công kỹ thuật quy định.
   - `@new_invoice_id INT OUTPUT`: Mã hóa đơn mới tạo.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/invoices/invoices.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/invoices/invoices.service.ts)
+  ```typescript
+  const rawResult: { invoice_id: number }[] = await this.dataSource.query(
+    `
+    DECLARE @out_id INT;
+    EXEC dbo.sp_create_invoice
+      @ticket_id = @0,
+      @labor_fee = @1,
+      @invoice_id = @out_id OUTPUT;
+    SELECT @out_id AS invoice_id;
+    `,
+    [createDto.ticketId, createDto.laborFee || 0],
+  );
+  const invoiceId = rawResult?.[0]?.invoice_id;
+  ```
 
 ---
 
@@ -86,6 +142,19 @@ SELECT @NewId AS ticket_id;
   - Nếu món linh kiện `@part_id` **chưa có** trong hóa đơn: Thêm mới dòng trong `invoice_items`.
   - Nếu món linh kiện **đã tồn tại sẵn** trong hóa đơn: Tự động cộng dồn số lượng `quantity = quantity + @quantity` (tránh sinh ra 2 dòng cùng 1 món linh kiện).
 - **Kiểm soát kho**: Trigger `trg_invoice_items_stock` sẽ tự động trừ kho và rollback nếu tồn kho không đủ.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/invoices/invoices.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/invoices/invoices.service.ts)
+  ```typescript
+  await this.dataSource.query(
+    `
+    EXEC dbo.sp_add_invoice_part
+      @invoice_id = @0,
+      @part_id = @1,
+      @quantity = @2;
+    `,
+    [invoiceId, addDto.partId, addDto.quantity || 1],
+  );
+  ```
 
 ---
 
@@ -95,6 +164,18 @@ SELECT @NewId AS ticket_id;
   1. Cập nhật hóa đơn sang `status = 'paid'`, lưu phương thức thanh toán (`cash`, `bank_transfer`, `credit_card`) và mốc giờ `paid_at`.
   2. Kiểm tra nếu tất cả hóa đơn của phiếu này đều đã được thanh toán xong -> Tự động chuyển trạng thái phiếu `tickets.status` sang `delivered` (Đã giao máy) và điền `completed_at`.
   3. Cả 2 thao tác nằm trong cùng 1 khối `BEGIN TRANSACTION ... COMMIT TRANSACTION`. Nếu có bất kỳ lỗi nào, hệ thống tự `ROLLBACK` an toàn.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/invoices/invoices.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/invoices/invoices.service.ts)
+  ```typescript
+  await this.dataSource.query(
+    `
+    EXEC dbo.sp_checkout_invoice
+      @invoice_id = @0,
+      @payment_method = @1;
+    `,
+    [invoiceId, checkoutDto.paymentMethod],
+  );
+  ```
 
 ---
 
@@ -108,14 +189,14 @@ SELECT @NewId AS ticket_id;
   - Nếu phát hiện chênh lệch (Discrepancy):
     - Ghi nhận thông tin hóa đơn lỗi và số tiền chênh lệch.
     - Nếu tham số `@auto_fix = 1`: Tự động chạy lệnh `UPDATE` sửa lại số tiền cho đúng với thực tế.
-
-```sql
--- Chạy đối soát chỉ xem báo cáo sai lệch (không sửa)
-EXEC dbo.sp_audit_invoices @auto_fix = 0;
-
--- Chạy đối soát và tự động sửa các hóa đơn sai lệch
-EXEC dbo.sp_audit_invoices @auto_fix = 1;
-```
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/reports/reports.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/reports/reports.service.ts)
+  ```typescript
+  const rawResults = await this.dataSource.query(
+    `EXEC dbo.sp_audit_invoices @auto_fix = @0;`,
+    [autoFix ? 1 : 0], // 1 = Tự động sửa sai lệch doanh thu; 0 = Chỉ đối soát
+  );
+  ```
 
 ---
 
@@ -125,6 +206,114 @@ EXEC dbo.sp_audit_invoices @auto_fix = 1;
   - Khởi tạo con trỏ T-SQL duyệt tuần tự danh sách phiếu chưa hoàn tất mà `DATEDIFF(DAY, received_at, GETDATE()) > @delay_days` (mặc định >14 ngày).
   - Vòng lặp Cursor duyệt từng bản ghi, nạp vào biến bảng `@delayed_tickets` (Table Variable) kết hợp tính toán số ngày quá hạn và phân loại thông tin khách hàng, KTV phụ trách.
   - Trả về Recordset dạng bảng sắp xếp giảm dần theo số ngày trễ hạn để Web API NestJS và Frontend Next.js render trực tiếp lên giao diện Dashboard.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/reports/reports.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/reports/reports.service.ts)
+  ```typescript
+  const rawResults: DelayedTicketReportRow[] = await this.dataSource.query(
+    `EXEC dbo.sp_alert_delayed_tickets @delay_days = @0;`,
+    [delayDays], // Mặc định 14 ngày
+  );
+  ```
+
+---
+
+### 2.8 `dbo.sp_backup_database` — Sao Lưu Toàn Diện CSDL (Physical Full Backup)
+- **Mục đích**: Thực thi sao lưu CSDL nguyên khối ra file nhị phân `.bak` trực tiếp trên disk máy chủ.
+- **Tham số**:
+  - `@backup_dir NVARCHAR(260) = NULL`: Thư mục lưu file (mặc định `/docker-entrypoint-initdb.d/exchange`).
+  - `@file_name NVARCHAR(260) = NULL`: Tên file (mặc định theo timestamp).
+  - `@out_backup_path NVARCHAR(500) OUTPUT`: Đường dẫn file sinh ra.
+- **Kỹ thuật**: Thực hiện `BACKUP DATABASE warranty_management TO DISK = ... WITH FORMAT, INIT, COMPRESSION`.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/database-admin/database-admin.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/database-admin/database-admin.service.ts)
+  ```typescript
+  const result = await this.dataSource.query(
+    `
+    DECLARE @out_path NVARCHAR(500);
+    EXEC dbo.sp_backup_database
+      @backup_dir = '/docker-entrypoint-initdb.d/exchange',
+      @file_name = @0,
+      @out_backup_path = @out_path OUTPUT;
+    `,
+    [fileName],
+  );
+  ```
+
+---
+
+### 2.9 `master.dbo.sp_restore_database` — Khôi Phục CSDL Từ File Snapshot
+- **Mục đích**: Ngắt kết nối hiện hành và khôi phục CSDL từ file snapshot `.bak`.
+- **Tham số**:
+  - `@backup_path NVARCHAR(500)`: Đường dẫn file `.bak` cần restore.
+- **Kỹ thuật**: 
+  - `ALTER DATABASE warranty_management SET SINGLE_USER WITH ROLLBACK IMMEDIATE;`
+  - `RESTORE DATABASE warranty_management FROM DISK = @backup_path WITH REPLACE;`
+  - `ALTER DATABASE warranty_management SET MULTI_USER;`
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/database-admin/database-admin.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/database-admin/database-admin.service.ts)
+  ```typescript
+  // Chuyển ngữ cảnh sang 'master' để ngắt lock của chính phiên kết nối hiện hành, rồi chuyển ngược lại
+  const result = await this.dataSource.query(
+    `USE master; EXEC master.dbo.sp_restore_database @backup_path = @0; USE warranty_management;`,
+    [mssqlPath],
+  );
+  ```
+
+---
+
+### 2.10 `dbo.sp_bulk_import_parts` — Nạp Dữ Liệu Hàng Loạt Bằng BULK INSERT
+- **Mục đích**: Nạp dữ liệu danh mục linh kiện trực tiếp từ file CSV vào Database Engine tốc độ cao.
+- **Tham số**:
+  - `@csv_file_path NVARCHAR(500)`: Đường dẫn file CSV trên máy chủ.
+  - `@rows_imported INT OUTPUT`: Số lượng bản ghi bị tác động.
+- **Cơ chế Upsert**:
+  - Dùng `BULK INSERT #staging_parts FROM ... WITH (FORMAT = 'CSV', TABLOCK)`.
+  - Dùng `MERGE dbo.parts` để cộng dồn tồn kho nếu linh kiện đã có, hoặc thêm mới nếu chưa có.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/database-admin/database-admin.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/database-admin/database-admin.service.ts)
+  ```typescript
+  const result: { rows_affected: number; total_rows_read: number }[] =
+    await this.dataSource.query(
+      `EXEC dbo.sp_bulk_import_parts @csv_file_path = @0`,
+      [mssqlPath],
+    );
+  ```
+
+---
+
+### 2.11 `dbo.sp_bulk_import_tickets` — Nạp Phiếu Sửa Chữa Hàng Loạt Bằng BULK INSERT
+- **Mục đích**: Nạp danh sách phiếu tiếp nhận sửa chữa hàng loạt trực tiếp từ file CSV vào Database Engine tốc độ cao, khởi tạo trạng thái chuẩn và đảm bảo toàn vẹn dữ liệu.
+- **Tham số**:
+  - `@csv_file_path NVARCHAR(500)`: Đường dẫn file CSV trên máy chủ.
+  - `@receptionist_id INT = 1`: Mã nhân viên tiếp nhận phiếu (mặc định lấy Manager/Receptionist đầu tiên nếu ID không tồn tại).
+  - `@rows_imported INT OUTPUT`: Số lượng phiếu sửa chữa được nạp thành công.
+- **Quy tắc Nghiệp vụ & Toàn vẹn CSDL**:
+  - Đọc CSV vào `#staging_tickets` qua `BULK INSERT ... WITH (FORMAT = 'CSV', FIRSTROW = 2, TABLOCK)`.
+  - Toàn bộ phiếu nạp tự động đặt trạng thái ban đầu `status = 'received'`, `technician_id = NULL` (chưa phân công kỹ thuật viên phụ trách để phân công thủ công sau).
+  - Tự động kích hoạt Trigger `trg_tickets_audit_history` ghi nhận nhật ký ban đầu vào bảng `ticket_status_history`.
+  - Thực hiện `INNER JOIN dbo.devices` để triệt tiêu lỗi vi phạm khoá ngoại FK 547 nếu file CSV chứa `device_id` không tồn tại.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/database-admin/database-admin.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/database-admin/database-admin.service.ts)
+  ```typescript
+  const result: { rows_affected: number; total_rows_read: number }[] =
+    await this.dataSource.query(
+      `EXEC dbo.sp_bulk_import_tickets @csv_file_path = @0, @receptionist_id = @1`,
+      [mssqlPath, receptionistId],
+    );
+  ```
+
+---
+
+### 2.12 `dbo.sp_export_parts_data`, `dbo.sp_export_invoices_data`, `dbo.sp_export_tickets_data` — Trích Xuất Dữ Liệu Nguyên Khối
+- **Mục đích**: Database Engine trực tiếp select và format dataset chuẩn để xuất file CSV cho người dùng.
+- **Mã thực thi Backend NestJS (`TypeORM Parameterized Query`):**
+  *File:* [`core/src/modules/database-admin/database-admin.service.ts`](file:///Users/lehuyair/Documents/UIT/warranty_management/core/src/modules/database-admin/database-admin.service.ts)
+  ```typescript
+  // Tùy theo bảng được chọn để xuất CSV:
+  const parts = await this.dataSource.query(`EXEC dbo.sp_export_parts_data`);
+  const invoices = await this.dataSource.query(`EXEC dbo.sp_export_invoices_data`);
+  const tickets = await this.dataSource.query(`EXEC dbo.sp_export_tickets_data`);
+  ```
 
 ---
 

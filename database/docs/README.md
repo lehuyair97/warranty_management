@@ -29,9 +29,27 @@ Tài liệu chi tiết được chia thành 3 chuyên đề kỹ thuật chuyên
 - Danh mục **3 Hàm người dùng (Functions)**: Tính tổng tiền linh kiện, Kiểm tra hạn bảo hành, Lịch sử sửa chữa thiết bị.
 
 ### 4. [04. Sổ Tay Kỹ Thuật: Ánh Xạ Thao Tác Dashboard Đến Database Engine](./04_dashboard_actions_and_sql_execution.md)
-- Ma trận ánh xạ chi tiết **10 thao tác nghiệp vụ trên giao diện Web Dashboard** (Tiếp nhận, Chẩn đoán KTV, Xuất/Hủy linh kiện, Thanh toán, Đối soát Cursor, Cảnh báo SLA Cursor).
+- Ma trận ánh xạ chi tiết **17 thao tác nghiệp vụ trên giao diện Web Dashboard** (Tiếp nhận, Chẩn đoán KTV, Xuất/Hủy linh kiện, Thanh toán, Đối soát Cursor, Cảnh báo SLA Cursor, Backup/Restore CSDL, Bulk Import CSV).
 - Sơ đồ tuần tự **Mermaid Sequence Diagram** toàn diện từ click chuột $\rightarrow$ REST API $\rightarrow$ Database Engine.
-- Bảng đối chiếu phản hồi mã lỗi `50001` - `50036` tương ứng với thông báo Toast trên UI.
+- Bảng đối chiếu phản hồi mã lỗi `50001` - `50064` tương ứng với thông báo Toast trên UI.
+
+---
+
+## 🌐 Danh Mục Đường Dẫn Trực Quan Trên Web (UI Dashboard URLs)
+
+Để hỗ trợ kiểm thử và báo cáo, các phân hệ nghiệp vụ trên giao diện Web Next.js được ánh xạ tương ứng với các đối tượng CSDL SQL Server:
+
+| Phân hệ nghiệp vụ | URL Trực Quan (Localhost) | Đối tượng CSDL Thực Thi Trực Tiếp |
+| :--- | :--- | :--- |
+| **Tổng quan Dashboard** | [http://localhost:3000/dashboard](http://localhost:3000/dashboard) | Cursor `cur_delayed_tickets` (cảnh báo SLA), Cursor `cur_invoices` (đối soát doanh thu) |
+| **Bàn tiếp nhận (POS)** | [http://localhost:3000/reception](http://localhost:3000/reception) | Procedure `sp_receive_device`, UDF `fn_is_device_under_warranty`, Trigger `trg_tickets_audit_history` |
+| **Bàn kỹ thuật (Sửa chữa)** | [http://localhost:3000/technician](http://localhost:3000/technician) | Procedure `sp_process_ticket`, `sp_add_invoice_part`, Trigger `trg_invoice_items_stock` (trừ kho), `trg_tickets_workflow_guard` |
+| **Thu ngân & Hóa đơn** | [http://localhost:3000/cashier](http://localhost:3000/cashier) | Procedure `sp_checkout_invoice`, Trigger `trg_invoices_freeze_paid_amounts` & `trg_invoice_items_freeze_paid` (khóa tài chính) |
+| **Danh sách phiếu sửa** | [http://localhost:3000/tickets](http://localhost:3000/tickets) | Procedure `sp_bulk_import_tickets` (Bulk Insert CSV), Trigger `trg_tickets_audit_history`, UDF `fn_get_device_repair_history` |
+| **Kho linh kiện** | [http://localhost:3000/inventory](http://localhost:3000/inventory) | Procedure `sp_bulk_import_parts` (Bulk Insert CSV & Merge), Trigger `trg_invoice_items_stock` |
+| **Quản trị CSDL (Data & Backup)** | [http://localhost:3000/database](http://localhost:3000/database) | Procedure `sp_backup_database` (.BAK), `sp_restore_database`, `sp_bulk_import_*`, `sp_export_*` |
+| **Quản lý nhân sự** | [http://localhost:3000/employees](http://localhost:3000/employees) | Phân quyền vai trò hệ thống (`manager`, `technician`, `receptionist`) |
+| **Tra cứu bảo hành công khai** | [http://localhost:3000/tra-cuu](http://localhost:3000/tra-cuu) | UDF `fn_is_device_under_warranty`, UDF `fn_get_device_repair_history` |
 
 ---
 

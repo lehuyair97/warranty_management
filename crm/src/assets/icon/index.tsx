@@ -9,10 +9,12 @@ import {
   ArrowRight,
   Calendar,
   CreditCard,
+  Database,
   DollarSign,
   Download,
   Eye,
   FileCheck,
+  FileSpreadsheet,
   HardDrive,
   History,
   Laptop,
@@ -30,6 +32,7 @@ import {
   Smartphone,
   Tag,
   Tv,
+  Upload,
   UserCheck,
   X,
   XCircle,
@@ -209,3 +212,6 @@ export const IconDownload = createLucideIcon(Download);
 export const IconEdit = createLucideIcon(Pencil);
 export const IconMoreHorizontal = createLucideIcon(MoreHorizontal);
 export const IconMoreVertical = createLucideIcon(MoreVertical);
+export const IconDatabase = createLucideIcon(Database);
+export const IconUpload = createLucideIcon(Upload);
+export const IconFileSpreadsheet = createLucideIcon(FileSpreadsheet);

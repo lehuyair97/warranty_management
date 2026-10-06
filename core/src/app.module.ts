@@ -26,6 +26,7 @@ import { AuthModule } from '@/modules/auth/auth.module';
 import { CustomersModule } from '@/modules/customers/customers.module';
 import { DevicesModule } from '@/modules/devices/devices.module';
 import { EmployeesModule } from '@/modules/employees/employees.module';
+import { DatabaseAdminModule } from '@/modules/database-admin/database-admin.module';
 import { InvoicesModule } from '@/modules/invoices/invoices.module';
 import { PartsModule } from '@/modules/parts/parts.module';
 import { ReportsModule } from '@/modules/reports/reports.module';
@@ -81,6 +82,7 @@ import { TicketsModule } from '@/modules/tickets/tickets.module';
     PartsModule,
     InvoicesModule,
     ReportsModule,
+    DatabaseAdminModule,
   ],
   providers: [
     // Global Exception Filter

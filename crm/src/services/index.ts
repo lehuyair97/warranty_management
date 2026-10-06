@@ -6,3 +6,4 @@ export * from './customers.service';
 export * from './devices.service';
 export * from './employees.service';
 export * from './reports.service';
+export * from './database-admin.service';

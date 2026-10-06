@@ -51,6 +51,9 @@ mssql_data/
 *.mdf
 *.ldf
 *.log
+*.bak
+database/exchange/*
+!database/exchange/.gitkeep
 
 # ==========================================
 # IDE & Editor Configurations
