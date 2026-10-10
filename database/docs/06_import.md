@@ -1,48 +1,44 @@
--- ============================================================
--- MIGRATION 06: DATABASE MANAGEMENT (BACKUP, RESTORE, BULK IMPORT/EXPORT)
--- ============================================================
+# 06. Cơ Chế Nhập Liệu Hàng Loạt (Bulk Data Import)
 
-USE warranty_management;
-GO
+> **Hệ Quản Trị CSDL**: Microsoft SQL Server 2022  
+> **Kỹ Thuật**: Native `BULK INSERT` kết hợp Bảng Tạm Staging (`#staging_*`) và Lệnh Hợp Nhất `MERGE`  
+> **Mục Đích**: Tải dữ liệu quy mô lớn từ tệp tin CSV/Excel vào CSDL với tốc độ cao, xác thực dữ liệu trước khi lưu và bảo toàn toàn vẹn tham chiếu.
 
-SET ANSI_NULLS ON;
-SET QUOTED_IDENTIFIER ON;
-GO
+---
 
--- 6.1. Stored Procedure: Backup Database to Disk
-CREATE OR ALTER PROCEDURE dbo.sp_backup_database
-    @backup_dir        NVARCHAR(260) = NULL,
-    @file_name         NVARCHAR(260) = NULL,
-    @out_backup_path   NVARCHAR(500) = NULL OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    DECLARE @dir NVARCHAR(260) = ISNULL(@backup_dir, '/docker-entrypoint-initdb.d/exchange');
-    DECLARE @timestamp VARCHAR(20) = REPLACE(REPLACE(CONVERT(VARCHAR(19), GETDATE(), 120), ' ', '_'), ':', '-');
-    DECLARE @fname NVARCHAR(260) = ISNULL(@file_name, 'warranty_backup_' + @timestamp + '.bak');
-    DECLARE @full_path NVARCHAR(500) = @dir + '/' + @fname;
+## 1. Kiến Trúc Quy Trình Nhập Dữ Liệu Staging (Staging Pattern)
 
-    BEGIN TRY
-        BACKUP DATABASE warranty_management
-        TO DISK = @full_path
-        WITH FORMAT, INIT, COMPRESSION, NAME = 'Warranty Management Full Backup';
+Thay vì chèn trực tiếp dữ liệu thô từ file người dùng tải lên vào các bảng chính thức (dễ gây lỗi khóa bảng, rách dữ liệu nếu file có dòng lỗi ở giữa), hệ thống áp dụng **Quy trình Staging 3 bước**:
 
-        SET @out_backup_path = @full_path;
+```mermaid
+flowchart LR
+    A["File CSV / Excel<br/>(Volume chia sẻ)"] --> B["1. BULK INSERT vào Bảng Tạm<br/>(#staging_parts / #staging_tickets)"]
+    B --> C["2. Làm Sạch & Xác Thực<br/>(TRIM, NULLIF, Ràng buộc Khóa Ngoại)"]
+    C --> D["3. MERGE / INSERT vào Bảng Chính<br/>(Cập nhật tồn kho hoặc chèn phiếu mới)"]
+    C -- Dữ liệu lỗi --> E["Bắt lỗi TRY...CATCH & DROP Bảng Tạm"]
+```
 
-        SELECT 
-            @fname AS file_name,
-            @full_path AS backup_path,
-            GETDATE() AS created_at;
-    END TRY
-    BEGIN CATCH
-        DECLARE @err_msg NVARCHAR(2048) = ERROR_MESSAGE();
-        THROW 50061, @err_msg, 1;
-    END CATCH;
-END;
-GO
+---
 
--- 6.2. Stored Procedure: Bulk Import Spare Parts from CSV via BULK INSERT
+## 2. Chi Tiết Các Thủ Tục Nhập Liệu
+
+### 2.1. `dbo.sp_bulk_import_parts`: Nhập hàng loạt linh kiện & Tự động hợp nhất tồn kho
+
+#### Mục đích:
+Cho phép Quản lý kho nhập danh mục hàng trăm linh kiện cùng lúc. Nếu linh kiện đã có sẵn trong kho thì tự động cộng dồn số lượng tồn kho mới và cập nhật giá mới; nếu là mặt hàng mới thì tự động chèn vào kho.
+
+#### Luồng xử lý chi tiết:
+1. Kiểm tra đường dẫn tệp tin `@csv_file_path` hợp lệ.
+2. Khởi tạo bảng tạm `#staging_parts` trong `tempdb`.
+3. Sử dụng Native `BULK INSERT` với cờ `TABLOCK` để tối ưu hóa ghi log giao dịch (Minimal Logging).
+4. Sử dụng câu lệnh `MERGE`:
+   - Khớp nối `ON target.part_name = source.part_name`.
+   - `WHEN MATCHED`: Cộng dồn `target.stock_quantity = target.stock_quantity + source.stock_quantity` và cập nhật đơn giá mới nhất.
+   - `WHEN NOT MATCHED`: Chèn bản ghi phụ tùng mới vào bảng `parts`.
+5. Đếm số dòng tác động qua `@@ROWCOUNT` và trả về kết quả đối soát.
+
+#### Mã nguồn T-SQL chi tiết:
+```sql
 CREATE OR ALTER PROCEDURE dbo.sp_bulk_import_parts
     @csv_file_path NVARCHAR(500),
     @rows_imported INT = 0 OUTPUT
@@ -53,6 +49,7 @@ BEGIN
     IF @csv_file_path IS NULL OR LEN(@csv_file_path) = 0
         THROW 50060, N'CSV file path cannot be empty.', 1;
 
+    -- 1. Bảng tạm chứa dữ liệu thô từ file CSV
     CREATE TABLE #staging_parts (
         part_name      NVARCHAR(100),
         unit           VARCHAR(20),
@@ -61,6 +58,7 @@ BEGIN
     );
 
     BEGIN TRY
+        -- 2. Đọc file cực nhanh bằng BULK INSERT
         DECLARE @sql NVARCHAR(MAX) = N'
             BULK INSERT #staging_parts
             FROM ''' + REPLACE(@csv_file_path, '''', '''''') + N'''
@@ -74,7 +72,7 @@ BEGIN
 
         EXEC sp_executesql @sql;
 
-        -- Upsert logic: if part_name matches, increment stock and update price; otherwise insert new record
+        -- 3. Hợp nhất dữ liệu vào bảng chính thức
         MERGE dbo.parts AS target
         USING (
             SELECT 
@@ -83,7 +81,9 @@ BEGIN
                 CAST(price AS DECIMAL(18,2)) AS price,
                 CAST(stock_quantity AS INT) AS stock_quantity
             FROM #staging_parts
-            WHERE NULLIF(TRIM(part_name), '') IS NOT NULL AND price >= 0 AND stock_quantity >= 0
+            WHERE NULLIF(TRIM(part_name), '') IS NOT NULL 
+              AND price >= 0 
+              AND stock_quantity >= 0
         ) AS source
         ON target.part_name = source.part_name
         WHEN MATCHED THEN
@@ -97,6 +97,7 @@ BEGIN
 
         SET @rows_imported = @@ROWCOUNT;
 
+        -- 4. Trả về kết quả đối soát
         SELECT 
             @rows_imported AS rows_affected,
             (SELECT COUNT(1) FROM #staging_parts) AS total_rows_read;
@@ -111,120 +112,24 @@ BEGIN
     END CATCH;
 END;
 GO
+```
 
--- 6.3. Stored Procedure: Export Parts Dataset
-CREATE OR ALTER PROCEDURE dbo.sp_export_parts_data
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        id, 
-        part_name, 
-        unit, 
-        price, 
-        stock_quantity, 
-        FORMAT(created_at, 'yyyy-MM-dd HH:mm:ss') AS created_at,
-        FORMAT(updated_at, 'yyyy-MM-dd HH:mm:ss') AS updated_at
-    FROM dbo.parts
-    ORDER BY id ASC;
-END;
-GO
+---
 
--- 6.4. Stored Procedure: Export Invoices Dataset
-CREATE OR ALTER PROCEDURE dbo.sp_export_invoices_data
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        i.id,
-        i.ticket_id,
-        i.status,
-        i.labor_fee,
-        i.discount_amount,
-        i.total_amount,
-        i.payment_method,
-        FORMAT(i.paid_at, 'yyyy-MM-dd HH:mm:ss') AS paid_at,
-        FORMAT(i.created_at, 'yyyy-MM-dd HH:mm:ss') AS created_at
-    FROM dbo.invoices i
-    ORDER BY i.id ASC;
-END;
-GO
+### 2.2. `dbo.sp_bulk_import_tickets`: Nhập hàng loạt phiếu dịch vụ tiếp nhận
 
--- 6.5. Stored Procedure: Export Tickets Dataset
-CREATE OR ALTER PROCEDURE dbo.sp_export_tickets_data
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT 
-        t.id,
-        t.device_id,
-        t.receptionist_id,
-        t.technician_id,
-        t.ticket_type,
-        t.status,
-        t.issue_description,
-        t.initial_condition,
-        t.accessories,
-        t.fault_cause,
-        t.repair_solution,
-        t.estimated_cost,
-        FORMAT(t.received_at, 'yyyy-MM-dd HH:mm:ss') AS received_at,
-        FORMAT(t.completed_at, 'yyyy-MM-dd HH:mm:ss') AS completed_at
-    FROM dbo.tickets t
-    ORDER BY t.id ASC;
-END;
-GO
+#### Mục đích:
+Hỗ trợ di chuyển dữ liệu từ hệ thống cũ hoặc nhập danh sách thiết bị bảo hành định kỳ từ các đối tác doanh nghiệp lớn.
 
--- 6.6. Stored Procedure: Restore Database (defined in master database)
-USE master;
-GO
+#### Luồng xử lý chi tiết:
+1. Khởi tạo bảng tạm `#staging_tickets`.
+2. Nạp dữ liệu từ CSV vào bảng tạm bằng `BULK INSERT`.
+3. Kiểm tra tính toàn vẹn tham chiếu khóa ngoại: Chỉ những dòng có `s.device_id` tồn tại trong bảng `dbo.devices` mới được phép chèn vào CSDL (`JOIN dbo.devices d ON d.id = s.device_id`).
+4. Chuẩn hóa loại dịch vụ: Nếu giá trị không thuộc `('repair', 'warranty', 're_repair')` thì tự động fallback về `repair`.
+5. Thiết lập trạng thái mặc định của phiếu mới là `received`.
 
-CREATE OR ALTER PROCEDURE dbo.sp_restore_database
-    @backup_path NVARCHAR(500)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    IF @backup_path IS NULL OR LEN(@backup_path) = 0
-        THROW 50063, N'Backup path cannot be empty.', 1;
-
-    BEGIN TRY
-        ALTER DATABASE warranty_management SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-
-        RESTORE DATABASE warranty_management 
-        FROM DISK = @backup_path 
-        WITH REPLACE;
-
-        ALTER DATABASE warranty_management SET MULTI_USER;
-
-        SELECT 
-            'Database warranty_management restored successfully' AS message,
-            @backup_path AS restored_from,
-            GETDATE() AS restored_at;
-    END TRY
-    BEGIN CATCH
-        -- Ensure database is returned to MULTI_USER on failure
-        IF DB_ID('warranty_management') IS NOT NULL
-        BEGIN
-            BEGIN TRY
-                ALTER DATABASE warranty_management SET MULTI_USER;
-            END TRY
-            BEGIN CATCH
-                -- ignore secondary reset error
-            END CATCH;
-        END;
-
-        DECLARE @restore_err NVARCHAR(2048) = ERROR_MESSAGE();
-        THROW 50064, @restore_err, 1;
-    END CATCH;
-END;
-GO
-
-USE warranty_management;
-GO
-
--- 6.7. Bulk Import Tickets via Native BULK INSERT
--- Inserts tickets with status 'received' and technician unassigned, auto-triggering audit history
+#### Mã nguồn T-SQL chi tiết:
+```sql
 CREATE OR ALTER PROCEDURE dbo.sp_bulk_import_tickets
     @csv_file_path   NVARCHAR(500),
     @receptionist_id INT = 1,
@@ -236,6 +141,7 @@ BEGIN
     IF @csv_file_path IS NULL OR LEN(@csv_file_path) = 0
         THROW 50060, N'CSV file path cannot be empty.', 1;
 
+    -- Đảm bảo receptionist_id hợp lệ
     IF NOT EXISTS (SELECT 1 FROM employees WHERE id = @receptionist_id)
         SELECT TOP 1 @receptionist_id = id FROM employees WHERE role IN ('manager', 'receptionist');
 
@@ -262,6 +168,7 @@ BEGIN
 
         EXEC sp_executesql @sql;
 
+        -- Xác thực khóa ngoại và chèn vào bảng tickets chính thức
         INSERT INTO dbo.tickets (
             device_id,
             receptionist_id,
@@ -313,4 +220,18 @@ BEGIN
     END CATCH;
 END;
 GO
+```
 
+---
+
+## 3. Tích Hợp Hệ Thống Với Tầng Ứng Dụng (Full-stack Integration)
+
+1. **Volume Trao Đổi Tệp**: Thư mục `database/exchange/` được gắn mount vào container SQL Server tại `/var/opt/mssql/backup/`.
+2. **Xử lý tại Backend (NestJS)**:
+   - Client tải file lên qua API `POST /api/database/import/parts`.
+   - Backend lưu file tạm vào volume trao đổi.
+   - Gọi Stored Procedure:
+     ```typescript
+     await this.dataSource.query(`EXEC dbo.sp_bulk_import_parts @csv_file_path = @0`, [filePath]);
+     ```
+   - Dọn dẹp file tạm và phản hồi số lượng bản ghi nhập thành công về giao diện người dùng.
