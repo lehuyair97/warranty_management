@@ -20,6 +20,7 @@ import {
   InvoiceItemEntity,
   PartEntity,
   TicketEntity,
+  TicketItemEntity,
   TicketStatusHistoryEntity,
 } from '@/database/entities';
 import { AuthModule } from '@/modules/auth/auth.module';
@@ -57,6 +58,7 @@ import { TicketsModule } from '@/modules/tickets/tickets.module';
             DeviceEntity,
             PartEntity,
             TicketEntity,
+            TicketItemEntity,
             InvoiceEntity,
             InvoiceItemEntity,
             TicketStatusHistoryEntity,

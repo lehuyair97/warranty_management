@@ -6,3 +6,4 @@ export * from './ticket.entity';
 export * from './invoice.entity';
 export * from './invoice-item.entity';
 export * from './ticket-status-history.entity';
+export * from './ticket-item.entity';

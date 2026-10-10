@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { InvoiceStatus, TicketStatus } from '@/common/constants';
+import { TicketStatus } from '@/common/constants';
 import { CustomerEntity } from '@/database/entities/customer.entity';
 import { InvoiceEntity } from '@/database/entities/invoice.entity';
 import { PartEntity } from '@/database/entities/part.entity';
@@ -103,7 +103,6 @@ export class ReportsService {
     const revenueResult = await this.invoiceRepo
       .createQueryBuilder('inv')
       .select('SUM(inv.totalAmount)', 'total')
-      .where('inv.status = :status', { status: InvoiceStatus.PAID })
       .getRawOne();
 
     const totalRevenue = parseFloat(revenueResult?.total || '0');
@@ -152,8 +151,7 @@ export class ReportsService {
             FORMAT(created_at, 'yyyy-MM') AS month_label,
             SUM(total_amount) AS total_revenue
           FROM dbo.invoices
-          WHERE status = 'paid'
-            AND created_at >= DATEADD(month, -5, DATEADD(day, 1-DAY(GETDATE()), CAST(GETDATE() AS DATE)))
+          WHERE created_at >= DATEADD(month, -5, DATEADD(day, 1-DAY(GETDATE()), CAST(GETDATE() AS DATE)))
           GROUP BY FORMAT(created_at, 'yyyy-MM')
           ORDER BY month_label ASC;
         `),
@@ -187,7 +185,7 @@ export class ReportsService {
     // Aggregate top 5 consumed spare parts from paid invoices
     let topParts: { id: number; partName: string; unit: string; totalQuantity: number; totalAmount: number }[] = [];
     try {
-      const topPartsRaw = await this.dataSource.query(`
+      const topPartsRaw: Record<string, unknown>[] = await this.dataSource.query(`
         SELECT TOP 5
           p.id,
           p.part_name AS partName,
@@ -197,19 +195,43 @@ export class ReportsService {
         FROM dbo.invoice_items ii
         INNER JOIN dbo.parts p ON ii.part_id = p.id
         INNER JOIN dbo.invoices inv ON ii.invoice_id = inv.id
-        WHERE inv.status = 'paid'
         GROUP BY p.id, p.part_name, p.unit
-        ORDER BY totalQuantity DESC;
+        ORDER BY totalQuantity DESC, totalAmount DESC;
       `);
-      topParts = (topPartsRaw || []).map((row: any) => ({
+      topParts = (topPartsRaw || []).map((row) => ({
         id: Number(row.id),
         partName: String(row.partName),
         unit: String(row.unit),
-        totalQuantity: parseInt(row.totalQuantity, 10) || 0,
-        totalAmount: parseFloat(row.totalAmount) || 0,
+        totalQuantity: parseInt(String(row.totalQuantity), 10) || 0,
+        totalAmount: parseFloat(String(row.totalAmount)) || 0,
       }));
     } catch {
       topParts = [];
+    }
+
+    // Aggregate top 5 active technicians by resolved tickets and total workload
+    let topTechnicians: { id: number; name: string; totalHandled: number; completedCount: number }[] = [];
+    try {
+      const topTechsRaw: Record<string, unknown>[] = await this.dataSource.query(`
+        SELECT TOP 5
+          e.id,
+          e.full_name AS name,
+          COUNT(t.id) AS totalHandled,
+          SUM(CASE WHEN t.status IN ('completed', 'delivered', 'paid') THEN 1 ELSE 0 END) AS completedCount
+        FROM dbo.employees e
+        INNER JOIN dbo.tickets t ON e.id = t.technician_id
+        WHERE e.role = 'technician' AND e.is_active = 1
+        GROUP BY e.id, e.full_name
+        ORDER BY completedCount DESC, totalHandled DESC;
+      `);
+      topTechnicians = (topTechsRaw || []).map((row) => ({
+        id: Number(row.id),
+        name: String(row.name),
+        totalHandled: parseInt(String(row.totalHandled), 10) || 0,
+        completedCount: parseInt(String(row.completedCount), 10) || 0,
+      }));
+    } catch {
+      topTechnicians = [];
     }
 
     return {
@@ -228,6 +250,7 @@ export class ReportsService {
       },
       monthlyTrends,
       topParts,
+      topTechnicians,
     };
   }
 }

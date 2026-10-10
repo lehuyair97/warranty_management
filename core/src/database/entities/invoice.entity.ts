@@ -9,7 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { InvoiceStatus, PaymentMethod } from '@/common/constants';
+import { PaymentMethod } from '@/common/constants';
 import { InvoiceItemEntity } from './invoice-item.entity';
 import { TicketEntity } from './ticket.entity';
 
@@ -18,16 +18,13 @@ import { TicketEntity } from './ticket.entity';
  */
 @Entity({ name: 'invoices' })
 @Index('ix_invoices_ticket_id', ['ticketId'])
-@Index('ix_invoices_status_created_at', ['status', 'createdAt'])
+@Index('ix_invoices_created_at', ['createdAt'])
 export class InvoiceEntity {
   @PrimaryGeneratedColumn({ type: 'int' })
   id: number;
 
   @Column({ name: 'ticket_id', type: 'int' })
   ticketId: number;
-
-  @Column({ type: 'varchar', length: 30, default: InvoiceStatus.UNPAID })
-  status: InvoiceStatus;
 
   @Column({ name: 'labor_fee', type: 'decimal', precision: 18, scale: 2, default: 0 })
   laborFee: number;

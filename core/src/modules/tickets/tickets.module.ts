@@ -5,6 +5,7 @@ import { EmployeeEntity } from '@/database/entities/employee.entity';
 import { InvoiceEntity } from '@/database/entities/invoice.entity';
 import { TicketEntity } from '@/database/entities/ticket.entity';
 import { TicketStatusHistoryEntity } from '@/database/entities/ticket-status-history.entity';
+import { TicketItemEntity } from '@/database/entities/ticket-item.entity';
 import { TicketsController } from './tickets.controller';
 import { TicketsService } from './tickets.service';
 
@@ -19,6 +20,7 @@ import { TicketsService } from './tickets.service';
       EmployeeEntity,
       InvoiceEntity,
       TicketStatusHistoryEntity,
+      TicketItemEntity,
     ]),
   ],
   controllers: [TicketsController],

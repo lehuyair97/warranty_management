@@ -23,8 +23,12 @@ const VALID_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
     TicketStatus.CANCELLED,
   ],
   [TicketStatus.COMPLETED]: [
+    TicketStatus.PAID,
     TicketStatus.DELIVERED,
     TicketStatus.REPAIRING, // In case QC fails post-check
+  ],
+  [TicketStatus.PAID]: [
+    TicketStatus.DELIVERED,
   ],
   [TicketStatus.DELIVERED]: [], // Terminal state - cannot transition
   [TicketStatus.CANCELLED]: [], // Terminal state - cannot transition

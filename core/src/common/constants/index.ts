@@ -16,6 +16,7 @@ export enum TicketStatus {
   WAITING_FOR_PARTS = 'waiting_for_parts',
   REPAIRING = 'repairing',
   COMPLETED = 'completed',
+  PAID = 'paid',
   DELIVERED = 'delivered',
   CANCELLED = 'cancelled',
 }

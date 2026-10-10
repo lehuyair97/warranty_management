@@ -292,4 +292,39 @@ describe('TicketsService', () => {
       );
     });
   });
+
+  describe('addPart', () => {
+    it('should execute dbo.sp_add_ticket_part and return ticket', async () => {
+      mockDataSource.query.mockResolvedValue([{ ticket_id: 1 }]);
+      mockTicketRepo.findOne.mockResolvedValue({ id: 1, items: [] });
+
+      const result = await service.addPart(1, 2, 3);
+      expect(result).toBeDefined();
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining('dbo.sp_add_ticket_part'),
+        [1, 2, 3],
+      );
+    });
+  });
+
+  describe('checkout', () => {
+    it('should execute dbo.sp_checkout_ticket and return invoice result', async () => {
+      mockDataSource.query.mockResolvedValue([{ invoice_id: 10 }]);
+
+      const result = await service.checkout(1, 200000, 'cash', 5);
+      expect(result).toEqual({ invoice_id: 10 });
+      expect(mockDataSource.query).toHaveBeenCalledWith(
+        expect.stringContaining('dbo.sp_checkout_ticket'),
+        [1, 200000, 'cash', 5],
+      );
+    });
+
+    it('should throw NotFoundException when checkout returns empty', async () => {
+      mockDataSource.query.mockResolvedValue([]);
+
+      await expect(service.checkout(1, 200000, 'cash', 5)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
 });

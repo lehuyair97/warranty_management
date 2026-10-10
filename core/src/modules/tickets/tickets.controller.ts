@@ -95,6 +95,27 @@ export class TicketsController {
     return this.ticketsService.processTicket(id, processDto, currentUser);
   }
 
+  @Post(':id/parts')
+  @Roles(EmployeeRole.MANAGER, EmployeeRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Add a part to a ticket' })
+  async addPart(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { partId: number; quantity: number },
+  ) {
+    return this.ticketsService.addPart(id, dto.partId, dto.quantity);
+  }
+
+  @Post(':id/checkout')
+  @Roles(EmployeeRole.MANAGER, EmployeeRole.RECEPTIONIST)
+  @ApiOperation({ summary: 'Checkout ticket and create invoice' })
+  async checkout(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: { laborFee: number; paymentMethod: string },
+    @CurrentUser('id') cashierId: number,
+  ) {
+    return this.ticketsService.checkout(id, dto.laborFee, dto.paymentMethod, cashierId);
+  }
+
   @Delete(':id')
   @Roles(EmployeeRole.MANAGER)
   @ApiOperation({ summary: 'Delete a repair ticket (Manager only)' })

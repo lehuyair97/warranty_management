@@ -126,13 +126,27 @@ describe('ReportsService', () => {
   });
 
   describe('getDashboardSummary', () => {
-    it('should aggregate metrics from repositories', async () => {
+    it('should aggregate metrics from repositories and include top technicians', async () => {
+      mockDataSource.query.mockImplementation(async (sql: string) => {
+        if (sql.includes('completedCount') || sql.includes('technician_id')) {
+          return [
+            { id: 7, name: 'Phan Anh Viet', totalHandled: '5', completedCount: '4' },
+            { id: 8, name: 'Duong Van Xuan', totalHandled: '4', completedCount: '3' },
+          ];
+        }
+        return [];
+      });
+
       const summary = await service.getDashboardSummary();
       expect(summary.overview.totalTickets).toBe(10);
       expect(summary.overview.totalCustomers).toBe(20);
       expect(summary.overview.totalRevenue).toBe(1500000);
       expect(summary.overview.lowStockPartsCount).toBe(2);
       expect(summary.distribution.byStatus).toBeDefined();
+      expect(summary.topTechnicians).toBeDefined();
+      expect(summary.topTechnicians.length).toBe(2);
+      expect(summary.topTechnicians[0].name).toBe('Phan Anh Viet');
+      expect(summary.topTechnicians[0].completedCount).toBe(4);
     });
   });
 });
