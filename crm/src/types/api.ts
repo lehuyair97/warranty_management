@@ -1,4 +1,4 @@
-import { EmployeeRole, InvoiceStatus, PaymentMethod, TicketStatus, TicketType } from './index';
+import { EmployeeRole, PaymentMethod, TicketStatus, TicketType } from './index';
 
 /**
  * Standard pagination metadata structure.
@@ -120,7 +120,7 @@ export interface PartQueryParams extends BasePaginationParams {
  * Query filter parameters for invoices list.
  */
 export interface InvoiceQueryParams extends BasePaginationParams {
-  status?: InvoiceStatus | string;
+  
   paymentMethod?: PaymentMethod | string;
 }
 

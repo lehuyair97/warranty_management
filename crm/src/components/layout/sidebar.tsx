@@ -46,7 +46,7 @@ const NAV_ITEMS: NavItem[] = [
     roles: [EmployeeRole.TECHNICIAN, EmployeeRole.MANAGER],
   },
   {
-    name: 'Thu ngân & Hóa đơn',
+    name: 'Bàn thu ngân (Thanh toán)',
     href: '/cashier',
     icon: <IconCreditCard className="w-5 h-5" />,
     roles: [EmployeeRole.RECEPTIONIST, EmployeeRole.MANAGER],
@@ -54,6 +54,11 @@ const NAV_ITEMS: NavItem[] = [
   {
     name: 'Danh sách phiếu sửa',
     href: '/tickets',
+    icon: <IconFileText className="w-5 h-5" />,
+  },
+  {
+    name: 'Danh sách hóa đơn',
+    href: '/invoices',
     icon: <IconFileText className="w-5 h-5" />,
   },
   {

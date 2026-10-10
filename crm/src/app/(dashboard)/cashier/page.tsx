@@ -1,103 +1,72 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { IconCreditCard } from '@/assets/icon';
 import { DataTable, PageContainer, PageHeader } from '@/components/core';
 import { Badge } from '@/components/ui/badge';
-import { CashierFilterToolbar } from '@/features/cashier/components/CashierFilterToolbar';
-import { InvoiceCheckoutModal } from '@/features/cashier/components/InvoiceCheckoutModal';
-import { InvoiceReceiptModal } from '@/features/cashier/components/InvoiceReceiptModal';
-import { getCashierInvoiceColumns } from '@/features/cashier/config/cashier-invoices.columns';
-import { useCashierBilling } from '@/features/cashier/hooks/useCashierBilling';
+import { TicketCheckoutModal } from '@/features/cashier/components/TicketCheckoutModal';
+import { getCashierColumns } from '@/features/cashier/config/cashier.columns';
+import { api } from '@/lib/api-client';
+import { Ticket } from '@/types';
 
-/**
- * Cashier Billing Controller Screen (~60 lines)
- * Pure View Orchestrator delegating state and logic to useCashierBilling and feature components.
- */
 export default function CashierBillingPage() {
-  const {
-    invoices,
-    isLoading,
-    refetch,
-    filterStatus,
-    setFilterStatus,
-    page,
-    setPage,
-    pageSize,
-    totalPages,
-    totalItems,
-    selectedInvoice,
-    checkoutModalOpen,
-    setCheckoutModalOpen,
-    receiptModalOpen,
-    setReceiptModalOpen,
-    checkoutForm,
-    handleOpenCheckout,
-    handleViewReceipt,
-    onCheckoutSubmit,
-    isCheckingOut,
-  } = useCashierBilling();
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+
+  const { data, isLoading, refetch } = useQuery<{ items: Ticket[] }>({
+    queryKey: ['tickets', 'completed'],
+    queryFn: async () => {
+      return api.get<{ items: Ticket[] }>('/tickets', { status: 'completed' });
+    },
+  });
 
   const columns = useMemo(
     () =>
-      getCashierInvoiceColumns({
-        onOpenCheckout: handleOpenCheckout,
-        onViewReceipt: handleViewReceipt,
+      getCashierColumns({
+        onCheckout: (ticket) => setSelectedTicket(ticket),
       }),
-    [handleOpenCheckout, handleViewReceipt],
+    [],
   );
+
+  const tickets = data?.items || [];
 
   return (
     <PageContainer>
-      {/* Header & Filter Controls */}
+      {/* Header */}
       <PageHeader
-        title="Quầy Thu Ngân & Quyết Toán Hóa Đơn"
-        description="Quyết toán viện phí dịch vụ sửa chữa, hoàn tất thanh toán và in biên lai giao trả máy."
+        title="Quầy Thu Ngân"
+        description="Thanh toán phiếu sửa chữa đã hoàn thành, xuất hóa đơn và bàn giao thiết bị cho khách hàng."
         badge={
           <Badge variant="outline" size="sm">
             <IconCreditCard className="w-3.5 h-3.5" />
-            {totalItems} Hóa đơn
+            {tickets.length} Chờ thanh toán
           </Badge>
-        }
-        filter={
-          <CashierFilterToolbar
-            status={filterStatus}
-            onChange={setFilterStatus}
-          />
         }
         onRefresh={refetch}
         isRefreshing={isLoading}
       />
 
       {/* Main Data Table */}
-      <DataTable
+      <DataTable<Ticket>
         columns={columns}
-        data={invoices}
+        data={tickets}
         isLoading={isLoading}
-        emptyMessage="Không có hóa đơn nào phù hợp với bộ lọc."
-        currentPage={page}
-        totalPages={totalPages}
-        totalItems={totalItems}
-        pageSize={pageSize}
-        onPageChange={setPage}
+        emptyMessage="Không có phiếu sửa chữa nào cần thanh toán lúc này."
         className="flex-1"
+        hidePagination={tickets.length <= 10}
       />
 
-      {/* Feature Modals */}
-      <InvoiceCheckoutModal
-        open={checkoutModalOpen}
-        onOpenChange={setCheckoutModalOpen}
-        invoice={selectedInvoice}
-        form={checkoutForm}
-        onSubmit={onCheckoutSubmit}
-        isLoading={isCheckingOut}
-      />
-
-      <InvoiceReceiptModal
-        open={receiptModalOpen}
-        onOpenChange={setReceiptModalOpen}
-        invoice={selectedInvoice}
-      />
+      {/* Checkout Modal */}
+      {selectedTicket && (
+        <TicketCheckoutModal
+          ticket={selectedTicket}
+          isOpen={!!selectedTicket}
+          onClose={() => {
+            setSelectedTicket(null);
+            refetch();
+          }}
+        />
+      )}
     </PageContainer>
   );
 }

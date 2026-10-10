@@ -13,20 +13,12 @@ export function useCashierBilling() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(10);
 
-  const handleFilterStatusChange = (status: string) => {
-    setFilterStatus(status);
-    setPage(1);
-  };
-
   const queryParams: InvoiceQueryParams = useMemo(() => {
-    const params: InvoiceQueryParams = { page, limit: pageSize };
-    if (filterStatus) params.status = filterStatus;
-    return params;
-  }, [filterStatus, page, pageSize]);
+    return { page, limit: pageSize };
+  }, [page, pageSize]);
 
   const { data: invoicesData, isLoading, refetch } = useInvoices(queryParams);
   const checkoutMutation = useCheckoutInvoice();
@@ -85,8 +77,6 @@ export function useCashierBilling() {
     invoices,
     isLoading,
     refetch,
-    filterStatus,
-    setFilterStatus: handleFilterStatusChange,
     page,
     setPage,
     pageSize,

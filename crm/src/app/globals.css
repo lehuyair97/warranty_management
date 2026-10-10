@@ -70,7 +70,9 @@ body {
     visibility: hidden;
   }
   .printable-receipt,
-  .printable-receipt * {
+  .printable-receipt *,
+  .printable-invoice,
+  .printable-invoice * {
     visibility: visible;
   }
   .printable-receipt {
@@ -84,7 +86,20 @@ body {
     box-shadow: none !important;
     border: 1px dashed #d6cebf !important;
   }
+  .printable-invoice {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    border: none !important;
+  }
   .no-print {
     display: none !important;
   }
 }
+

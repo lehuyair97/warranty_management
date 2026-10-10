@@ -75,8 +75,10 @@ export const DiagnosisModal: React.FC<DiagnosisModalProps> = ({
 
   // Base server attached parts from ticket
   const serverParts = useMemo<LocalAttachedPart[]>(() => {
-    const items = ticket?.invoices?.[0]?.items || [];
-    return items.map((item) => ({
+    const items = ticket?.items && ticket.items.length > 0
+      ? ticket.items
+      : (ticket?.invoices?.[0]?.items || []);
+    return items.map((item: any) => ({
       partId: item.partId,
       partName: item.part?.partName || 'Linh kiện',
       partCode: item.part?.partCode || '',

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { IconCheckCircle, IconDownload, IconUpload } from '@/assets/icon';
 import { BaseModal } from '@/components/core/BaseModal';
 import { Button } from '@/components/ui/button';
@@ -22,12 +23,6 @@ interface TicketRowPreview {
   estimated_cost: string;
 }
 
-const SAMPLE_CSV_CONTENT = `device_id,ticket_type,issue_description,initial_condition,accessories,estimated_cost
-1,repair,Man hinh chop tat lien tuc va xuat hien soc ngang,May tray xuoc nhe o mat A,Sac cap zin theo may,350000
-2,warranty,Pin khong nhan sac bao loi nguon sau 2 tuan mua,May con nguyen tem bao hanh UIT Care,Hop may va phieu mua hang,0
-3,repair,Ban phim bi liet phim Space va Enter do roi nuoc,Nut bam bi rit may co mui am,Than may khong phu kien,450000
-4,repair,Nang cap them o cung SSD NVMe va ve sinh tra keo tan nhiet,May chay nong quat keu to,Adapter nguon,250000`;
-
 export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
   open,
   onOpenChange,
@@ -40,15 +35,17 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
   const [isImporting, setIsImporting] = useState<boolean>(false);
 
   const handleDownloadTemplate = () => {
-    const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'tickets_import_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    const data = [
+      { device_id: 1, ticket_type: 'repair', issue_description: 'Man hinh chop tat lien tuc va xuat hien soc ngang', initial_condition: 'May tray xuoc nhe o mat A', accessories: 'Sac cap zin theo may', estimated_cost: 350000 },
+      { device_id: 2, ticket_type: 'warranty', issue_description: 'Pin khong nhan sac bao loi nguon sau 2 tuan mua', initial_condition: 'May con nguyen tem bao hanh UIT Care', accessories: 'Hop may va phieu mua hang', estimated_cost: 0 },
+      { device_id: 3, ticket_type: 'repair', issue_description: 'Ban phim bi liet phim Space va Enter do roi nuoc', initial_condition: 'Nut bam bi rit may co mui am', accessories: 'Than may khong phu kien', estimated_cost: 450000 },
+      { device_id: 4, ticket_type: 'repair', issue_description: 'Nang cap them o cung SSD NVMe va ve sinh tra keo tan nhiet', initial_condition: 'May chay nong quat keu to', accessories: 'Adapter nguon', estimated_cost: 250000 },
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    worksheet['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 45 }, { wch: 35 }, { wch: 25 }, { wch: 15 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+    XLSX.writeFile(workbook, 'tickets_import_template.xlsx');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +54,17 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
 
     setFileName(file.name);
     try {
-      const text = await file.text();
+      let text = '';
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        text = await file.text();
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        text = XLSX.utils.sheet_to_csv(worksheet);
+      }
+      
       setCsvContent(text);
 
       const lines = text.trim().split('\n');
@@ -83,7 +90,7 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
       uiActions.addToast({
         type: 'error',
         title: 'Lỗi đọc file',
-        message: 'Không thể đọc file CSV. Vui lòng kiểm tra lại định dạng file!',
+        message: 'Không thể đọc file. Vui lòng kiểm tra lại định dạng file!',
       });
     }
   };
@@ -93,7 +100,7 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
       uiActions.addToast({
         type: 'warning',
         title: 'Chưa chọn file',
-        message: 'Vui lòng chọn file CSV chứa dữ liệu phiếu sửa chữa cần nạp!',
+        message: 'Vui lòng chọn file chứa dữ liệu phiếu sửa chữa cần nạp!',
       });
       return;
     }
@@ -128,7 +135,7 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
       open={open}
       onOpenChange={onOpenChange}
       title="Nạp phiếu sửa chữa bằng BULK INSERT"
-      description="Database Engine (SQL Server) sẽ trực tiếp đọc file CSV và tạo phiếu với trạng thái 'Tiếp nhận' (chưa gán KTV)."
+      description="Hệ thống hỗ trợ file Excel (.xlsx) giúp bạn nhập liệu dễ dàng. Dữ liệu sẽ tự động chuyển đổi sang CSV chuẩn để SQL Server xử lý và tạo phiếu với trạng thái 'Tiếp nhận'."
       primaryActionLabel={isImporting ? 'Đang nạp dữ liệu...' : 'Nạp phiếu sửa vào CSDL'}
       onPrimaryAction={handleImport}
       isPrimaryActionLoading={isImporting}
@@ -138,7 +145,7 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
         {/* Step 1: Download Template */}
         <div className="flex items-center justify-between p-3 rounded-lg bg-sand-50 border border-sand-200">
           <div>
-            <p className="font-medium text-stone-900">Mẫu file nạp chuẩn (CSV Template)</p>
+            <p className="font-medium text-stone-900">Mẫu file nạp chuẩn (Excel Template)</p>
             <p className="text-xs text-stone-500">
               Cột: device_id, ticket_type, issue_description, initial_condition, accessories, estimated_cost
             </p>
@@ -149,7 +156,7 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
             leftIcon={<IconDownload className="w-4 h-4" />}
             onClick={handleDownloadTemplate}
           >
-            Tải mẫu CSV
+            Tải mẫu Excel
           </Button>
         </div>
 
@@ -157,7 +164,7 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
         <div className="border-2 border-dashed border-sand-300 rounded-lg p-6 text-center hover:border-sand-400 transition-colors bg-white">
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
             id="ticket-csv-file-input"
             className="hidden"
             onChange={handleFileChange}
@@ -165,9 +172,9 @@ export const ImportTicketsModal: React.FC<ImportTicketsModalProps> = ({
           <label htmlFor="ticket-csv-file-input" className="cursor-pointer flex flex-col items-center">
             <IconUpload className="w-8 h-8 text-stone-400 mb-2" />
             <span className="font-semibold text-stone-800">
-              {fileName ? fileName : 'Bấm để chọn file CSV phiếu sửa từ máy tính'}
+              {fileName ? fileName : 'Bấm để chọn file Excel/CSV phiếu sửa từ máy tính'}
             </span>
-            <span className="text-xs text-stone-500 mt-1">Định dạng file: .csv (UTF-8)</span>
+            <span className="text-xs text-stone-500 mt-1">Định dạng hỗ trợ: .xlsx, .csv</span>
           </label>
         </div>
 

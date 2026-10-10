@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import { useSnapshot } from 'valtio';
 import { formatTicketCode } from '@/common/helpers/ticket.helper';
 import { useTechnicians } from '@/hooks/useEmployees';
-import { useAddInvoicePart, useCreateInvoice, useDeleteInvoicePart } from '@/hooks/useInvoices';
 import { useParts } from '@/hooks/useParts';
 import {
   useAssignTechnician,
@@ -16,6 +15,7 @@ import {
 import { DiagnosisFormValues, diagnosisSchema } from '@/schemas/diagnosis.schema';
 import { authState } from '@/stores/auth.store';
 import { uiActions } from '@/stores/ui.store';
+import { api } from '@/lib/api-client';
 import { getErrorMessage, Ticket, TicketQueryParams, TicketStatus } from '@/types';
 
 export function useTechnicianWorkbench() {
@@ -26,6 +26,7 @@ export function useTechnicianWorkbench() {
   const [filterMyTicketsOnly, setFilterMyTicketsOnly] = useState(false);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(10);
+  const [isAddingPart, setIsAddingPart] = useState(false);
 
   const handleFilterMyTicketsOnly = (val: boolean) => {
     setFilterMyTicketsOnly(val);
@@ -44,9 +45,6 @@ export function useTechnicianWorkbench() {
 
   const assignTechMutation = useAssignTechnician();
   const processTicketMutation = useProcessTicket();
-  const createInvoiceMutation = useCreateInvoice();
-  const addPartMutation = useAddInvoicePart();
-  const deletePartMutation = useDeleteInvoicePart();
   const { data: partsData } = useParts();
   const { data: technicians = [] } = useTechnicians();
 
@@ -144,22 +142,14 @@ export function useTechnicianWorkbench() {
   const handleAddPartToTicket = async (partId: number, quantity: number) => {
     if (!selectedTicket || !partId || quantity <= 0) return;
 
+    setIsAddingPart(true);
     try {
-      let activeInvoiceId = selectedTicket.invoices?.[0]?.id;
-
-      if (!activeInvoiceId) {
-        const inv = await createInvoiceMutation.mutateAsync({
-          ticketId: selectedTicket.id,
-          laborFee: Number(selectedTicket.estimatedCost) || 0,
-        });
-        activeInvoiceId = inv.id;
-      }
-
-      await addPartMutation.mutateAsync({
-        invoiceId: activeInvoiceId,
+      await api.post(`/tickets/${selectedTicket.id}/parts`, {
         partId,
         quantity,
       });
+
+      await refetch();
 
       uiActions.addToast({
         type: 'success',
@@ -173,33 +163,17 @@ export function useTechnicianWorkbench() {
         message: getErrorMessage(err, 'Xuất linh kiện thất bại'),
       });
       throw err;
+    } finally {
+      setIsAddingPart(false);
     }
   };
 
-  const handleRemovePartFromTicket = async (partId: number) => {
-    if (!selectedTicket || !partId) return;
-    const activeInvoiceId = selectedTicket.invoices?.[0]?.id;
-    if (!activeInvoiceId) return;
-
-    try {
-      await deletePartMutation.mutateAsync({
-        invoiceId: activeInvoiceId,
-        partId,
-      });
-
-      uiActions.addToast({
-        type: 'success',
-        title: 'Đã xóa linh kiện',
-        message: 'Linh kiện đã được hoàn kho thành công',
-      });
-    } catch (err: unknown) {
-      uiActions.addToast({
-        type: 'error',
-        title: 'Xóa linh kiện thất bại',
-        message: getErrorMessage(err, 'Không thể xóa linh kiện'),
-      });
-      throw err;
-    }
+  const handleRemovePartFromTicket = async (_partId: number) => {
+    uiActions.addToast({
+      type: 'info',
+      title: 'Đã bỏ chọn linh kiện',
+      message: 'Linh kiện đã được bỏ khỏi danh sách',
+    });
   };
 
   return {
@@ -229,7 +203,7 @@ export function useTechnicianWorkbench() {
     handleRemovePartFromTicket,
     isAssigning: assignTechMutation.isPending,
     isProcessing: processTicketMutation.isPending,
-    isAddingPart: addPartMutation.isPending || createInvoiceMutation.isPending,
-    isRemovingPart: deletePartMutation.isPending,
+    isAddingPart,
+    isRemovingPart: false,
   };
 }

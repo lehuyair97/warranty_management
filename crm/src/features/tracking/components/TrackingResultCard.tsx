@@ -1,18 +1,10 @@
 'use client';
 
 import React from 'react';
-import {
-  IconCreditCard,
-  IconLaptop,
-  IconPrinter,
-  IconWrench,
-} from '@/assets/icon';
+import { getTicketStatusLabel, getTicketStatusVariant, getTicketTypeConfig } from '@/common/helpers/status.helper';
 import { formatVND } from '@/common/helpers/currency.helper';
 import { formatDateTime } from '@/common/helpers/date.helper';
-import {
-  getInvoiceStatusConfig,
-  getTicketTypeConfig,
-} from '@/common/helpers/status.helper';
+import { IconCreditCard, IconLaptop, IconPrinter, IconWrench } from '@/assets/icon';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { TrackingTimeline } from './TrackingTimeline';
@@ -113,7 +105,7 @@ export const TrackingResultCard = React.memo<TrackingResultCardProps>(({ ticket 
 
           {ticket.invoices.map((inv: PublicTicketDetail['invoices'][number]) => (
             <div key={inv.id} className="flex justify-between items-center text-xs pt-1">
-              <span>Hóa đơn #{inv.id} ({getInvoiceStatusConfig(inv.status).label})</span>
+              <span>Hóa đơn #{inv.id}</span>
               <span className="font-bold text-sm text-stone-900">
                 {formatVND(Number(inv.totalAmount))}
               </span>

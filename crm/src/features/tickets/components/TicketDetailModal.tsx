@@ -2,6 +2,16 @@
 
 import React, { useState } from 'react';
 import {
+  getTicketStatusConfig,
+  getTicketStatusLabel,
+  getTicketStatusVariant,
+  getTicketTypeConfig,
+  getTicketTypeLabel,
+} from '@/common/helpers/status.helper';
+import { formatTicketCode } from '@/common/helpers/ticket.helper';
+import { formatVND } from '@/common/helpers/currency.helper';
+import { formatDate, formatDateTime } from '@/common/helpers/date.helper';
+import {
   IconCheckCircle,
   IconCreditCard,
   IconEdit,
@@ -11,14 +21,6 @@ import {
   IconUser,
   IconWrench,
 } from '@/assets/icon';
-import { formatVND } from '@/common/helpers/currency.helper';
-import { formatDate, formatDateTime } from '@/common/helpers/date.helper';
-import {
-  getInvoiceStatusConfig,
-  getTicketStatusConfig,
-  getTicketTypeConfig,
-} from '@/common/helpers/status.helper';
-import { formatTicketCode } from '@/common/helpers/ticket.helper';
 import { BaseModal } from '@/components/core/BaseModal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -593,10 +595,10 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                       {formatVND(Number(inv.totalAmount))}
                     </span>
                     <Badge
-                      variant={inv.status === 'paid' ? 'success' : 'warning'}
+                      variant="success"
                       size="sm"
                     >
-                      {getInvoiceStatusConfig(inv.status).label}
+                      Đã thanh toán
                     </Badge>
                   </div>
                 </div>

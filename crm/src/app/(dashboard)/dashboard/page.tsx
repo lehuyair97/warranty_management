@@ -76,10 +76,10 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Top Consumed Parts & Service Classification Breakdown */}
+      {/* Top Consumed Parts & Top Active Technicians Leaderboard */}
       <TopPartsLeaderboardCard
         topParts={summary?.topParts}
-        typeDistribution={summary?.distribution?.byType}
+        topTechnicians={summary?.topTechnicians}
       />
 
       {/* Delayed Tickets Alert Table Component */}

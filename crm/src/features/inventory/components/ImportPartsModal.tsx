@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import { IconCheckCircle, IconDownload, IconUpload } from '@/assets/icon';
 import { BaseModal } from '@/components/core/BaseModal';
 import { Button } from '@/components/ui/button';
@@ -20,13 +21,6 @@ interface CsvRowPreview {
   stock_quantity: string;
 }
 
-const SAMPLE_CSV_CONTENT = `part_name,unit,price,stock_quantity
-RAM Kingston Fury 8GB DDR4 3200MHz,piece,650000,15
-SSD Samsung 980 500GB NVMe M.2,piece,1250000,10
-Laptop Keyboard Dell Latitude 5420,piece,450000,8
-PIN Laptop Asus ZenBook 4-Cell,piece,850000,5
-Quat Tan Nhiet Laptop HP Envy 13,piece,320000,12`;
-
 export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
   open,
   onOpenChange,
@@ -39,15 +33,18 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
   const [isImporting, setIsImporting] = useState<boolean>(false);
 
   const handleDownloadTemplate = () => {
-    const blob = new Blob([SAMPLE_CSV_CONTENT], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'parts_import_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    const data = [
+      { part_name: 'RAM Kingston Fury 8GB DDR4 3200MHz', unit: 'piece', price: 650000, stock_quantity: 15 },
+      { part_name: 'SSD Samsung 980 500GB NVMe M.2', unit: 'piece', price: 1250000, stock_quantity: 10 },
+      { part_name: 'Laptop Keyboard Dell Latitude 5420', unit: 'piece', price: 450000, stock_quantity: 8 },
+      { part_name: 'PIN Laptop Asus ZenBook 4-Cell', unit: 'piece', price: 850000, stock_quantity: 5 },
+      { part_name: 'Quat Tan Nhiet Laptop HP Envy 13', unit: 'piece', price: 320000, stock_quantity: 12 },
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    worksheet['!cols'] = [{ wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+    XLSX.writeFile(workbook, 'parts_import_template.xlsx');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,7 +53,17 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
 
     setFileName(file.name);
     try {
-      const text = await file.text();
+      let text = '';
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        text = await file.text();
+      } else {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        text = XLSX.utils.sheet_to_csv(worksheet);
+      }
+      
       setCsvContent(text);
 
       const lines = text.trim().split('\n');
@@ -80,7 +87,7 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
       uiActions.addToast({
         type: 'error',
         title: 'Lỗi đọc file',
-        message: 'Không thể đọc file CSV. Vui lòng kiểm tra lại định dạng file!',
+        message: 'Không thể đọc file. Vui lòng kiểm tra lại định dạng file!',
       });
     }
   };
@@ -90,7 +97,7 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
       uiActions.addToast({
         type: 'warning',
         title: 'Chưa chọn file',
-        message: 'Vui lòng chọn file CSV chứa dữ liệu linh kiện cần nạp!',
+        message: 'Vui lòng chọn file chứa dữ liệu linh kiện cần nạp!',
       });
       return;
     }
@@ -125,7 +132,7 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
       open={open}
       onOpenChange={onOpenChange}
       title="Nạp dữ liệu kho bằng BULK INSERT"
-      description="Database Engine (SQL Server) sẽ trực tiếp đọc file CSV và nạp dữ liệu nguyên khối vào bảng parts."
+      description="Hệ thống hỗ trợ file Excel (.xlsx) giúp bạn nhập liệu dễ dàng. Dữ liệu sẽ tự động chuyển đổi sang CSV chuẩn để SQL Server xử lý."
       primaryActionLabel={isImporting ? 'Đang nạp dữ liệu...' : 'Nạp dữ liệu vào CSDL'}
       onPrimaryAction={handleImport}
       isPrimaryActionLoading={isImporting}
@@ -135,7 +142,7 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
         {/* Step 1: Download Template */}
         <div className="flex items-center justify-between p-3 rounded-lg bg-sand-50 border border-sand-200">
           <div>
-            <p className="font-medium text-stone-900">Mẫu file nạp chuẩn (CSV Template)</p>
+            <p className="font-medium text-stone-900">Mẫu file nạp chuẩn (Excel Template)</p>
             <p className="text-xs text-stone-500">Bao gồm 4 cột: part_name, unit, price, stock_quantity</p>
           </div>
           <Button
@@ -144,7 +151,7 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
             leftIcon={<IconDownload className="w-4 h-4" />}
             onClick={handleDownloadTemplate}
           >
-            Tải mẫu CSV
+            Tải mẫu Excel
           </Button>
         </div>
 
@@ -152,7 +159,7 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
         <div className="border-2 border-dashed border-sand-300 rounded-lg p-6 text-center hover:border-sand-400 transition-colors bg-white">
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
             id="csv-file-input"
             className="hidden"
             onChange={handleFileChange}
@@ -160,9 +167,9 @@ export const ImportPartsModal: React.FC<ImportPartsModalProps> = ({
           <label htmlFor="csv-file-input" className="cursor-pointer flex flex-col items-center">
             <IconUpload className="w-8 h-8 text-stone-400 mb-2" />
             <span className="font-semibold text-stone-800">
-              {fileName ? fileName : 'Bấm để chọn file CSV từ máy tính'}
+              {fileName ? fileName : 'Bấm để chọn file Excel/CSV từ máy tính'}
             </span>
-            <span className="text-xs text-stone-500 mt-1">Định dạng file: .csv (UTF-8)</span>
+            <span className="text-xs text-stone-500 mt-1">Định dạng hỗ trợ: .xlsx, .csv</span>
           </label>
         </div>
 

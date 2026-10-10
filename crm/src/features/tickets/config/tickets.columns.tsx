@@ -24,9 +24,10 @@ export function getTicketDirectoryColumns({
     {
       key: 'id',
       header: 'Mã Phiếu',
-      width: '110px',
+      width: '125px',
+      className: 'whitespace-nowrap min-w-[125px]',
       render: (row) => (
-        <span className="font-mono font-bold text-stone-900 bg-stone-100 px-2 py-1 rounded text-xs">
+        <span className="font-mono font-bold text-stone-900 bg-stone-100 px-2 py-1 rounded text-xs whitespace-nowrap inline-block">
           {formatTicketCode(row.id)}
         </span>
       ),

@@ -30,6 +30,20 @@ const STATUS_COLOR_PALETTE: Record<string, string> = {
 };
 
 /**
+ * Pure helper calculating resolved ticket count and completion rate.
+ */
+function calculateCompletionMetrics(
+  distribution: Record<string, number>,
+  total: number,
+): { completed: number; rate: number } {
+  const completed =
+    (distribution[TicketStatus.COMPLETED] || 0) +
+    (distribution[TicketStatus.DELIVERED] || 0);
+  const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+  return { completed, rate };
+}
+
+/**
  * Modern Donut chart visualizing the repair ticket status distribution.
  */
 export const TicketStatusDonutChart = React.memo<TicketStatusDonutChartProps>(({
@@ -56,6 +70,8 @@ export const TicketStatusDonutChart = React.memo<TicketStatusDonutChartProps>(({
     [chartData],
   );
 
+  const { completed, rate } = calculateCompletionMetrics(distribution, total);
+
   return (
     <Card className="p-5 flex flex-col justify-between">
       <div className="flex items-center justify-between mb-2">
@@ -64,7 +80,9 @@ export const TicketStatusDonutChart = React.memo<TicketStatusDonutChartProps>(({
             Phân Bổ Vòng Đời Phiếu Sửa Chữa
           </h3>
           <p className="text-xs text-stone-500">
-            Tỷ lệ phân chia theo các trạng thái thực tế
+            {total > 0
+              ? `Hoàn tất ${completed}/${total} phiếu (${rate}%) • ${activeCount} ca đang xử lý`
+              : 'Tỷ lệ phân chia theo các trạng thái thực tế'}
           </p>
         </div>
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sand-100 text-stone-700">

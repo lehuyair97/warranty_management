@@ -1,4 +1,5 @@
 import { api, axiosClient } from '@/lib/axios';
+import * as XLSX from 'xlsx';
 import {
   BackupDatabaseResult,
   BackupItem,
@@ -78,15 +79,43 @@ export const databaseAdminService = {
     table: 'parts' | 'invoices' | 'tickets',
     format: 'csv' | 'json' = 'csv',
   ): Promise<void> {
+    if (format === 'csv') {
+      // Overriding CSV to download a nicely formatted XLSX file instead
+      const res = await api.get<Record<string, unknown>[]>(`/database-admin/export/${table}?format=json`);
+      const data = res;
+      
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      
+      // Auto-fit columns logic
+      const keys = Object.keys(data[0] || {});
+      const colWidths = keys.map((key) => {
+        let maxLen = key.length; // Header length
+        data.forEach((row: Record<string, unknown>) => {
+          const val = row[key];
+          if (val !== null && val !== undefined) {
+            maxLen = Math.max(maxLen, String(val).length);
+          }
+        });
+        return { wch: maxLen + 3 }; // Adding some padding
+      });
+      worksheet['!cols'] = colWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'ExportData');
+      
+      XLSX.writeFile(workbook, `${table}_export.xlsx`);
+      return;
+    }
+
+    // JSON fallback
     const res = await axiosClient.get(`/database-admin/export/${table}?format=${format}`, {
       responseType: 'blob',
     });
-    const mime = format === 'csv' ? 'text/csv;charset=utf-8;' : 'application/json';
-    const blob = new Blob([res.data], { type: mime });
+    const blob = new Blob([res.data], { type: 'application/json' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${table}_export.${format}`);
+    link.setAttribute('download', `${table}_export.json`);
     document.body.appendChild(link);
     link.click();
     link.remove();
