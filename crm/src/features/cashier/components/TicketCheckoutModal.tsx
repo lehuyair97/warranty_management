@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { api } from '@/lib/api-client';
 import { uiActions } from '@/stores/ui.store';
-import { Ticket } from '@/types';
+import { Invoice, Ticket } from '@/types';
 
 interface TicketCheckoutModalProps {
   ticket: Ticket | null;
@@ -18,14 +18,29 @@ interface TicketCheckoutModalProps {
 
 export function TicketCheckoutModal({ ticket, isOpen, onClose }: TicketCheckoutModalProps) {
   const queryClient = useQueryClient();
+  const existingInvoice = ticket?.invoices?.[0];
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [laborFee, setLaborFee] = useState<number>(ticket?.estimatedCost || 0);
+  const [laborFee, setLaborFee] = useState<number>(
+    existingInvoice ? Number(existingInvoice.laborFee) : (ticket?.estimatedCost || 0),
+  );
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!ticket) return;
-      return api.post<{ invoice_id: number }>(`/tickets/${ticket.id}/checkout`, {
-        laborFee: Number(laborFee),
+      let invoiceId = ticket.invoices?.[0]?.id;
+      if (!invoiceId) {
+        const invs = await api.get<Invoice[]>(`/invoices/ticket/${ticket.id}`);
+        if (invs && invs.length > 0) {
+          invoiceId = invs[0].id;
+        } else {
+          const newInv = await api.post<Invoice>('/invoices', {
+            ticketId: ticket.id,
+            laborFee: Number(laborFee),
+          });
+          invoiceId = newInv.id;
+        }
+      }
+      return api.post<Invoice>(`/invoices/${invoiceId}/checkout`, {
         paymentMethod,
       });
     },
@@ -35,7 +50,7 @@ export function TicketCheckoutModal({ ticket, isOpen, onClose }: TicketCheckoutM
       uiActions.addToast({
         type: 'success',
         title: 'Thanh toán thành công',
-        message: `Đã tạo hóa đơn INV-${(data?.invoice_id || '').toString().padStart(5, '0')}`,
+        message: `Đã thanh toán hóa đơn INV-${(data?.id || '').toString().padStart(5, '0')}`,
       });
       onClose();
     },
@@ -83,6 +98,12 @@ export function TicketCheckoutModal({ ticket, isOpen, onClose }: TicketCheckoutM
           label="Phí dịch vụ / Công sửa chữa (VNĐ)"
           type="number"
           value={laborFee}
+          disabled={Boolean(existingInvoice)}
+          helperText={
+            existingInvoice
+              ? `Hóa đơn đã được lập (Tổng cộng: ${Number(existingInvoice.totalAmount).toLocaleString('vi-VN')} đ)`
+              : undefined
+          }
           onChange={(e) => setLaborFee(Number(e.target.value))}
         />
         <Select

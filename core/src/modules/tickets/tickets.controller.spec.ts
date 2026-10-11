@@ -15,8 +15,6 @@ describe('TicketsController', () => {
       create: jest.fn(),
       assignTechnician: jest.fn(),
       processTicket: jest.fn(),
-      addPart: jest.fn(),
-      checkout: jest.fn(),
       remove: jest.fn(),
       trackPublic: jest.fn(),
     };
@@ -58,28 +56,5 @@ describe('TicketsController', () => {
       expect(result).toEqual(mockResult);
     });
   });
-
-  describe('addPart', () => {
-    it('should forward addPart payload to ticketsService.addPart', async () => {
-      const mockResult = { id: 19 } as any;
-      service.addPart.mockResolvedValue(mockResult);
-
-      const result = await controller.addPart(19, { partId: 8, quantity: 2 });
-
-      expect(service.addPart).toHaveBeenCalledWith(19, 8, 2);
-      expect(result).toEqual(mockResult);
-    });
-  });
-
-  describe('checkout', () => {
-    it('should forward checkout payload to ticketsService.checkout', async () => {
-      const mockResult = { invoice_id: 10 } as any;
-      service.checkout.mockResolvedValue(mockResult);
-
-      const result = await controller.checkout(19, { laborFee: 200000, paymentMethod: 'cash' }, 5);
-
-      expect(service.checkout).toHaveBeenCalledWith(19, 200000, 'cash', 5);
-      expect(result).toEqual(mockResult);
-    });
-  });
 });
+

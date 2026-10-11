@@ -1,13 +1,20 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional } from 'class-validator';
-import { PaymentMethod } from '@/common/constants';
+import { InvoiceStatus, PaymentMethod } from '@/common/constants';
 import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
 
 /**
  * Filter parameters for querying invoices.
  */
 export class InvoiceQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: 'Filter by invoice settlement status',
+    enum: InvoiceStatus,
+  })
+  @IsOptional()
+  @IsEnum(InvoiceStatus)
+  status?: InvoiceStatus;
 
   @ApiPropertyOptional({
     description: 'Filter by payment method',

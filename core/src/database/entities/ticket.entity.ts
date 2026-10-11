@@ -14,7 +14,6 @@ import { DeviceEntity } from './device.entity';
 import { EmployeeEntity } from './employee.entity';
 import { InvoiceEntity } from './invoice.entity';
 import { TicketStatusHistoryEntity } from './ticket-status-history.entity';
-import { TicketItemEntity } from './ticket-item.entity';
 
 /**
  * Ticket entity representing repair orders.
@@ -92,7 +91,4 @@ export class TicketEntity {
 
   @OneToMany(() => TicketStatusHistoryEntity, (history) => history.ticket)
   statusHistory: TicketStatusHistoryEntity[];
-
-  @OneToMany(() => TicketItemEntity, (item) => item.ticket, { cascade: true })
-  items: TicketItemEntity[];
 }

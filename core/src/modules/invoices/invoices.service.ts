@@ -9,7 +9,12 @@ import { PaginatedResultDto } from '@/common/dto/paginated-result.dto';
 import { buildPaginationMeta } from '@/common/utils/pagination.util';
 import { InvoiceEntity } from '@/database/entities/invoice.entity';
 import { TicketEntity } from '@/database/entities/ticket.entity';
-import { InvoiceQueryDto } from './dto/invoice-query.dto';
+import {
+  AddInvoicePartDto,
+  CheckoutInvoiceDto,
+  CreateInvoiceDto,
+  InvoiceQueryDto,
+} from './dto';
 
 /**
  * Service managing billing invoices, spare part attachments, and payment checkout settlement.
@@ -32,6 +37,7 @@ export class InvoicesService {
       page = 1,
       limit = 10,
       search,
+      status,
       paymentMethod,
       ticketId,
       order = 'DESC',
@@ -46,7 +52,10 @@ export class InvoicesService {
       .leftJoinAndSelect('invoice.items', 'items')
       .leftJoinAndSelect('items.part', 'part');
 
-    
+    if (status) {
+      qb.andWhere('invoice.status = :status', { status });
+    }
+
     if (paymentMethod) {
       qb.andWhere('invoice.paymentMethod = :paymentMethod', { paymentMethod });
     }
@@ -108,9 +117,84 @@ export class InvoicesService {
    * Creates an invoice using stored procedure sp_create_invoice.
    * Stored procedure handles automatic warranty 100% labor discount.
    */
+  async create(createDto: CreateInvoiceDto): Promise<InvoiceEntity> {
+    const ticket = await this.ticketRepo.findOne({ where: { id: createDto.ticketId } });
+    if (!ticket) {
+      throw new NotFoundException(`Ticket #${createDto.ticketId} not found`);
+    }
+
+    const rawResult: { invoice_id: number }[] = await this.dataSource.query(
+      `
+      DECLARE @out_id INT;
+      EXEC dbo.sp_create_invoice
+        @ticket_id = @0,
+        @labor_fee = @1,
+        @invoice_id = @out_id OUTPUT;
+      SELECT @out_id AS invoice_id;
+      `,
+      [createDto.ticketId, createDto.laborFee || 0],
+    );
+
+    const invoiceId = rawResult?.[0]?.invoice_id;
+    if (!invoiceId) {
+      throw new BadRequestException('Failed to generate invoice from stored procedure');
+    }
+
+    return this.findOne(invoiceId);
+  }
+
+  /**
+   * Adds replacement spare parts to an invoice via stored procedure sp_add_invoice_part.
+   * Deducts inventory stock and recalculates invoice totals through DB triggers.
+   */
+  async addPart(invoiceId: number, addDto: AddInvoicePartDto): Promise<InvoiceEntity> {
+    await this.findOne(invoiceId);
+
+    await this.dataSource.query(
+      `
+      EXEC dbo.sp_add_invoice_part
+        @invoice_id = @0,
+        @part_id = @1,
+        @quantity = @2;
+      `,
+      [invoiceId, addDto.partId, addDto.quantity || 1],
+    );
+
+    return this.findOne(invoiceId);
+  }
+
+  /**
+   * Removes a replacement spare part from an invoice.
+   * Restores inventory stock and recalculates invoice totals through DB trigger trg_invoice_items_stock.
+   */
+  async removePart(invoiceId: number, partId: number): Promise<InvoiceEntity> {
+    await this.findOne(invoiceId);
+
+    await this.dataSource.query(
+      `DELETE FROM dbo.invoice_items WHERE invoice_id = @0 AND part_id = @1;`,
+      [invoiceId, partId],
+    );
+
+    return this.findOne(invoiceId);
+  }
+
   /**
    * Settles invoice payment via stored procedure sp_checkout_invoice.
    * Automatically advances ticket status to DELIVERED once all associated invoices are paid.
    */
+  async checkout(invoiceId: number, checkoutDto: CheckoutInvoiceDto): Promise<InvoiceEntity> {
+    await this.findOne(invoiceId);
 
+    await this.dataSource.query(
+      `
+      EXEC dbo.sp_checkout_invoice
+        @invoice_id = @0,
+        @payment_method = @1;
+      `,
+      [invoiceId, checkoutDto.paymentMethod],
+    );
+
+    return this.findOne(invoiceId);
+  }
 }
+

@@ -1,4 +1,4 @@
-import { TicketStatus, TicketType } from '@/types';
+import { InvoiceStatus, TicketStatus, TicketType } from '@/types';
 import { cva } from 'class-variance-authority';
 
 export const getTicketStatusVariant = cva('badge-base', {
@@ -9,7 +9,6 @@ export const getTicketStatusVariant = cva('badge-base', {
       [TicketStatus.WAITING_FOR_PARTS]: 'bg-orange-100 text-orange-700 hover:bg-orange-200 border-orange-200',
       [TicketStatus.REPAIRING]: 'bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200',
       [TicketStatus.COMPLETED]: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200',
-      [TicketStatus.PAID]: 'bg-teal-100 text-teal-700 hover:bg-teal-200 border-teal-200',
       [TicketStatus.DELIVERED]: 'bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200',
       [TicketStatus.CANCELLED]: 'bg-rose-100 text-rose-700 hover:bg-rose-200 border-rose-200',
     },
@@ -26,7 +25,6 @@ export const getTicketStatusLabel = (status: TicketStatus): string => {
     [TicketStatus.WAITING_FOR_PARTS]: 'Chờ linh kiện',
     [TicketStatus.REPAIRING]: 'Đang sửa chữa',
     [TicketStatus.COMPLETED]: 'Đã hoàn thành',
-    [TicketStatus.PAID]: 'Đã thanh toán',
     [TicketStatus.DELIVERED]: 'Đã trả khách',
     [TicketStatus.CANCELLED]: 'Đã hủy',
   };
@@ -73,12 +71,6 @@ const ticketStatusClasses: Record<string, { bgClass: string; borderClass: string
     textClass: 'text-emerald-700',
     dotClass: 'bg-emerald-500',
   },
-  [TicketStatus.PAID]: {
-    bgClass: 'bg-teal-50',
-    borderClass: 'border-teal-200',
-    textClass: 'text-teal-700',
-    dotClass: 'bg-teal-500',
-  },
   [TicketStatus.DELIVERED]: {
     bgClass: 'bg-purple-50',
     borderClass: 'border-purple-200',
@@ -114,10 +106,16 @@ export const getTicketTypeConfig = (type: TicketType | string) => {
   };
 };
 
-export const getInvoiceStatusConfig = (_status?: string) => {
+export const getInvoiceStatusConfig = (status?: InvoiceStatus | string) => {
+  const isPaid = status === InvoiceStatus.PAID;
   return {
-    label: 'Đã thanh toán',
-    variant: 'success' as const,
+    label: isPaid ? 'Đã thanh toán' : 'Chưa thanh toán',
+    variant: isPaid ? ('success' as const) : ('warning' as const),
+    bgClass: isPaid ? 'bg-emerald-50' : 'bg-amber-50',
+    borderClass: isPaid ? 'border-emerald-200' : 'border-amber-200',
+    textClass: isPaid ? 'text-emerald-700' : 'text-amber-700',
+    dotClass: isPaid ? 'bg-emerald-500' : 'bg-amber-500',
   };
 };
+
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { TicketStatus } from '@/common/constants';
+import { InvoiceStatus, TicketStatus } from '@/common/constants';
 import { CustomerEntity } from '@/database/entities/customer.entity';
 import { InvoiceEntity } from '@/database/entities/invoice.entity';
 import { PartEntity } from '@/database/entities/part.entity';
@@ -103,6 +103,7 @@ export class ReportsService {
     const revenueResult = await this.invoiceRepo
       .createQueryBuilder('inv')
       .select('SUM(inv.totalAmount)', 'total')
+      .where('inv.status = :status', { status: InvoiceStatus.PAID })
       .getRawOne();
 
     const totalRevenue = parseFloat(revenueResult?.total || '0');
@@ -151,7 +152,8 @@ export class ReportsService {
             FORMAT(created_at, 'yyyy-MM') AS month_label,
             SUM(total_amount) AS total_revenue
           FROM dbo.invoices
-          WHERE created_at >= DATEADD(month, -5, DATEADD(day, 1-DAY(GETDATE()), CAST(GETDATE() AS DATE)))
+          WHERE status = 'paid'
+            AND created_at >= DATEADD(month, -5, DATEADD(day, 1-DAY(GETDATE()), CAST(GETDATE() AS DATE)))
           GROUP BY FORMAT(created_at, 'yyyy-MM')
           ORDER BY month_label ASC;
         `),
@@ -195,6 +197,7 @@ export class ReportsService {
         FROM dbo.invoice_items ii
         INNER JOIN dbo.parts p ON ii.part_id = p.id
         INNER JOIN dbo.invoices inv ON ii.invoice_id = inv.id
+        WHERE inv.status = 'paid'
         GROUP BY p.id, p.part_name, p.unit
         ORDER BY totalQuantity DESC, totalAmount DESC;
       `);
@@ -217,7 +220,7 @@ export class ReportsService {
           e.id,
           e.full_name AS name,
           COUNT(t.id) AS totalHandled,
-          SUM(CASE WHEN t.status IN ('completed', 'delivered', 'paid') THEN 1 ELSE 0 END) AS completedCount
+          SUM(CASE WHEN t.status IN ('completed', 'delivered') THEN 1 ELSE 0 END) AS completedCount
         FROM dbo.employees e
         INNER JOIN dbo.tickets t ON e.id = t.technician_id
         WHERE e.role = 'technician' AND e.is_active = 1

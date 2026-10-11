@@ -10,9 +10,10 @@
 | Tên Stored Procedure | Phân Hệ Nghiệp Vụ | Tham Số Chính | Mã Lỗi THROW | Mục Đích Nghiệp Vụ |
 | :--- | :--- | :--- | :--- | :--- |
 | `dbo.sp_receive_device` | **Lễ Tân (POS)** | `@device_id`, `@receptionist_id`, `@issue_description`, `@ticket_id OUTPUT` | `50010`, `50011` | Tiếp nhận máy tại quầy, tự động kiểm tra bảo hành và khởi tạo phiếu dịch vụ |
-| `dbo.sp_process_ticket` | **Kỹ Thuật Viên** | `@ticket_id`, `@status`, `@technician_id`, `@fault_cause`, `@repair_solution` | `50020` - `50023` | Phân công KTV, cập nhật kết quả chẩn đoán và chuyển trạng thái sửa chữa |
-| `dbo.sp_add_ticket_part`| **Kỹ Thuật Viên** | `@ticket_id`, `@part_id`, `@quantity` | `50040` - `50044` | Xuất linh kiện từ kho gắn vào phiếu sửa chữa (kích hoạt trigger trừ kho) |
-| `dbo.sp_checkout_ticket`| **Quầy Thu Ngân** | `@ticket_id`, `@labor_fee`, `@payment_method`, `@invoice_id OUTPUT` | `50030`, `50032` | Quyết toán thanh toán, sinh hóa đơn, tự động miễn giảm bảo hành và khóa phiếu |
+| `dbo.sp_process_ticket` | **Kỹ Thuật Viên** | `@ticket_id`, `@status`, `@technician_id`, `@fault_cause`, `@repair_solution`, `@estimated_cost` | `50020` - `50023` | Phân công KTV, cập nhật kết quả chẩn đoán và chuyển trạng thái sửa chữa |
+| `dbo.sp_create_invoice` | **Thu Ngân / KTV** | `@ticket_id`, `@labor_fee`, `@invoice_id OUTPUT` | `50030` - `50032` | Khởi tạo hóa đơn thanh toán cho phiếu sửa chữa, tự động miễn giảm 100% nếu là bảo hành |
+| `dbo.sp_add_invoice_part`| **Kỹ Thuật Viên** | `@invoice_id`, `@part_id`, `@quantity` | `50040` - `50044` | Xuất linh kiện từ kho vào hóa đơn (kích hoạt trigger trừ kho và cập nhật tổng tiền) |
+| `dbo.sp_checkout_invoice`| **Quầy Thu Ngân** | `@invoice_id`, `@payment_method` | `50050`, `50052` | Quyết toán hóa đơn (`unpaid` $\rightarrow$ `paid`), lưu phương thức thanh toán và chuyển phiếu sang `delivered` |
 | `dbo.sp_backup_database`| **Quản Trị Hệ Thống** | `@backup_dir`, `@file_name`, `@full_path OUTPUT` | `50060`, `50062` | Sao lưu toàn vẹn CSDL ra tệp `.bak` chuẩn với nén dữ liệu (`COMPRESSION`) |
 | `dbo.sp_restore_database`| **Quản Trị Hệ Thống**| `@backup_path` | `50063`, `50064` | Phục hồi CSDL từ bản sao lưu trong ngữ cảnh `master` với `SINGLE_USER` |
 
@@ -25,7 +26,7 @@
 - **Quy trình nghiệp vụ**:
   1. Kiểm tra sự tồn tại của thiết bị (`devices.id`) $\rightarrow$ Báo lỗi `50010` nếu không tìm thấy.
   2. Kiểm tra vai trò nhân viên lập phiếu phải là `receptionist` hoặc `manager` $\rightarrow$ Báo lỗi `50011` nếu sai quyền.
-  3. **Tự động nhận diện bảo hành**: Nếu loại phiếu truyền vào là `repair`, procedure sẽ gọi hàm UDF `dbo.fn_is_device_under_warranty`. Nếu máy còn hạn bảo hành hợp lệ, hệ thống tự động đổi loại phiếu thành `warranty` để khách được hưởng chính sách miễn phí 100%.
+  3. **Tự động nhận diện bảo hành**: Nếu loại phiếu truyền vào là `repair`, procedure sẽ gọi hàm UDF `dbo.fn_is_device_under_warranty`. Nếu máy còn hạn bảo hành hợp lệ, hệ thống tự động đổi loại phiếu thành `warranty` để khách được hưởng chính sách bảo hành miễn phí.
   4. Chèn dòng mới vào bảng `tickets` với trạng thái ban đầu là `received`.
   5. Trả về mã phiếu vừa tạo qua tham số `OUTPUT @ticket_id`.
 
@@ -35,7 +36,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_receive_device
     @receptionist_id   INT,
     @issue_description NVARCHAR(500),
     @initial_condition NVARCHAR(200) = NULL,
-    @accessories       NVARCHAR(200) = NULL,
+    @accessories      NVARCHAR(200) = NULL,
     @ticket_type       VARCHAR(20)   = 'repair',
     @ticket_id         INT OUTPUT
 AS
@@ -48,7 +49,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM employees WHERE id = @receptionist_id AND role IN ('receptionist', 'manager'))
         THROW 50011, N'Invalid receptionist or manager employee.', 1;
 
-    -- Tự động chuyển thành 'warranty' nếu thiết bị còn hạn bảo hành
+    -- Tự động nhận diện bảo hành
     IF @ticket_type = 'repair' AND dbo.fn_is_device_under_warranty(@device_id, CAST(GETDATE() AS DATE)) = 1
         SET @ticket_type = 'warranty';
 
@@ -68,14 +69,14 @@ GO
 
 ---
 
-### 2.2. `dbo.sp_process_ticket`: Cập nhật tiến độ & chẩn đoán KTV
-- **Phân hệ**: Bàn Kỹ Thuật (Technician Workbench).
+### 2.2. `dbo.sp_process_ticket`: Phân công & cập nhật tiến trình sửa chữa
+- **Phân hệ**: Bàn Kỹ Thuật (Technician Workbench) & Quản lý kỹ thuật.
 - **Quy trình nghiệp vụ**:
-  1. Kiểm tra sự tồn tại của phiếu sửa chữa $\rightarrow$ Báo lỗi `50020`.
-  2. Kiểm tra danh mục trạng thái hợp lệ $\rightarrow$ Báo lỗi `50021`.
-  3. Kiểm tra nhân sự phụ trách có đúng là kỹ thuật viên (`role = 'technician'`) $\rightarrow$ Báo lỗi `50022`.
-  4. Ràng buộc KTV: Không cho phép đẩy trạng thái ra khỏi `received` nếu phiếu chưa được phân công kỹ thuật viên phụ trách $\rightarrow$ Báo lỗi `50023`.
-  5. Cập nhật các thông tin chẩn đoán kỹ thuật (`fault_cause`, `repair_solution`, `estimated_cost`) và trạng thái mới.
+  1. Kiểm tra phiếu tồn tại $\rightarrow$ Báo lỗi `50020`.
+  2. Xác thực tính hợp lệ của trạng thái mới thuộc danh mục cho phép (`received`, `inspecting`, `waiting_for_parts`, `repairing`, `completed`, `delivered`, `cancelled`) $\rightarrow$ Báo lỗi `50021`.
+  3. Kiểm tra nhân viên được phân công phải có vai trò `technician` $\rightarrow$ Báo lỗi `50022`.
+  4. Ràng buộc: Không được chuyển trạng thái vượt khỏi `received` nếu phiếu chưa được phân công kỹ thuật viên $\rightarrow$ Báo lỗi `50023`.
+  5. Cập nhật các trường chẩn đoán (`fault_cause`), phương án (`repair_solution`), chi phí ước tính (`estimated_cost`) và trạng thái phiếu.
 
 ```sql
 CREATE OR ALTER PROCEDURE dbo.sp_process_ticket
@@ -96,7 +97,7 @@ BEGIN
     IF @current_status IS NULL
         THROW 50020, N'Ticket not found.', 1;
 
-    IF @status NOT IN ('received', 'inspecting', 'waiting_for_parts', 'repairing', 'completed', 'paid', 'delivered', 'cancelled')
+    IF @status NOT IN ('received', 'inspecting', 'waiting_for_parts', 'repairing', 'completed', 'delivered', 'cancelled')
         THROW 50021, N'Invalid ticket status.', 1;
 
     IF @technician_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM employees WHERE id = @technician_id AND role = 'technician')
@@ -119,31 +120,76 @@ GO
 
 ---
 
-### 2.3. `dbo.sp_add_ticket_part`: Xuất linh kiện vào phiếu sửa chữa
-- **Phân hệ**: Bàn Kỹ Thuật (Technician Workbench).
+### 2.3. `dbo.sp_create_invoice`: Khởi tạo hóa đơn cho phiếu sửa chữa
+- **Phân hệ**: Quản lý Hóa đơn & Bàn Kỹ thuật.
 - **Quy trình nghiệp vụ**:
-  1. Kiểm tra trạng thái phiếu: Cấm tuyệt đối việc thêm linh kiện vào phiếu đã quyết toán hoặc hủy (`paid`, `delivered`, `cancelled`) $\rightarrow$ Báo lỗi `50041`.
-  2. Kiểm tra tính hợp lệ của số lượng xuất (`quantity > 0`) $\rightarrow$ Báo lỗi `50042`.
-  3. Kiểm tra linh kiện tồn tại trong kho $\rightarrow$ Báo lỗi `50043`.
-  4. Kiểm tra tồn kho khả dụng $\rightarrow$ Báo lỗi `50044` nếu thiếu hàng.
-  5. Nếu linh kiện đã có sẵn trong phiếu, tự động cộng dồn số lượng (`quantity = quantity + @quantity`). Nếu chưa có, tạo bản ghi mới trong `ticket_items`.
-  6. *Lưu ý*: Lệnh chèn/sửa trên bảng `ticket_items` sẽ kích hoạt Trigger `trg_ticket_items_stock` tự động trừ số lượng tồn kho trong bảng `parts`.
+  1. Kiểm tra sự tồn tại của phiếu sửa chữa $\rightarrow$ Báo lỗi `50030`.
+  2. Tiền công kỹ thuật không được là số âm (`labor_fee >= 0`) $\rightarrow$ Báo lỗi `50031`.
+  3. Đảm bảo mỗi phiếu chỉ có duy nhất 1 hóa đơn đang ở trạng thái chưa thanh toán (`status = 'unpaid'`) $\rightarrow$ Báo lỗi `50032`.
+  4. **Chính sách ưu đãi tự động**: Nếu phiếu thuộc diện bảo hành (`warranty`) hoặc sửa lại (`re_repair`), tự động miễn giảm 100% tiền công (`discount_amount = labor_fee`).
+  5. Chèn bản ghi hóa đơn mới vào bảng `invoices` với trạng thái `unpaid`.
 
 ```sql
-CREATE OR ALTER PROCEDURE dbo.sp_add_ticket_part
-    @ticket_id INT,
-    @part_id   INT,
-    @quantity  INT
+CREATE OR ALTER PROCEDURE dbo.sp_create_invoice
+    @ticket_id    INT,
+    @labor_fee    DECIMAL(18,2) = 0,
+    @invoice_id   INT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @unit_price DECIMAL(18,2), @stock INT, @ticket_status VARCHAR(30);
 
-    SELECT @ticket_status = status FROM tickets WHERE id = @ticket_id;
-    IF @ticket_status IS NULL
-        THROW 50040, N'Ticket not found.', 1;
-    IF @ticket_status IN ('paid', 'delivered', 'cancelled')
-        THROW 50041, N'Cannot add parts to an already settled ticket.', 1;
+    IF NOT EXISTS (SELECT 1 FROM tickets WHERE id = @ticket_id)
+        THROW 50030, N'Ticket not found.', 1;
+
+    IF @labor_fee < 0
+        THROW 50031, N'Labor fee cannot be negative.', 1;
+
+    IF EXISTS (SELECT 1 FROM invoices WHERE ticket_id = @ticket_id AND status = 'unpaid')
+        THROW 50032, N'An unpaid invoice already exists for this ticket.', 1;
+
+    DECLARE @ticket_type VARCHAR(20), @discount DECIMAL(18,2) = 0;
+    SELECT @ticket_type = ticket_type FROM tickets WHERE id = @ticket_id;
+
+    -- Tự động miễn phí 100% tiền công nếu là diện bảo hành hoặc sửa lại
+    IF @ticket_type IN ('warranty', 're_repair')
+        SET @discount = @labor_fee;
+
+    INSERT INTO invoices (ticket_id, created_at, status, labor_fee, discount_amount, total_amount)
+    VALUES (@ticket_id, GETDATE(), 'unpaid', @labor_fee, @discount, @labor_fee - @discount);
+
+    SET @invoice_id = SCOPE_IDENTITY();
+END;
+GO
+```
+
+---
+
+### 2.4. `dbo.sp_add_invoice_part`: Xuất linh kiện vào hóa đơn
+- **Phân hệ**: Bàn Kỹ Thuật (Technician Workbench).
+- **Quy trình nghiệp vụ**:
+  1. Kiểm tra hóa đơn tồn tại $\rightarrow$ Báo lỗi `50040`.
+  2. Cấm thêm linh kiện vào hóa đơn đã hoàn tất thanh toán (`status = 'paid'`) $\rightarrow$ Báo lỗi `50041`.
+  3. Kiểm tra tính hợp lệ của số lượng xuất (`quantity > 0`) $\rightarrow$ Báo lỗi `50042`.
+  4. Kiểm tra linh kiện tồn tại trong kho $\rightarrow$ Báo lỗi `50043`.
+  5. Kiểm tra tồn kho khả dụng $\rightarrow$ Báo lỗi `50044` nếu thiếu hàng trong kho.
+  6. Nếu linh kiện đã có sẵn trong hóa đơn, tự động cộng dồn số lượng (`quantity = quantity + @quantity`). Nếu chưa có, tạo bản ghi mới trong `invoice_items`.
+  7. *Lưu ý*: Lệnh chèn/sửa trên bảng `invoice_items` sẽ kích hoạt Trigger `trg_invoice_items_stock` tự động trừ số lượng tồn kho trong bảng `parts`, đồng thời kích hoạt `trg_invoices_total_amount` tự động tính lại tổng tiền hóa đơn.
+
+```sql
+CREATE OR ALTER PROCEDURE dbo.sp_add_invoice_part
+    @invoice_id INT,
+    @part_id    INT,
+    @quantity   INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @unit_price DECIMAL(18,2), @stock INT, @inv_status VARCHAR(30);
+
+    SELECT @inv_status = status FROM invoices WHERE id = @invoice_id;
+    IF @inv_status IS NULL
+        THROW 50040, N'Invoice not found.', 1;
+    IF @inv_status = 'paid'
+        THROW 50041, N'Cannot add parts to an already paid invoice.', 1;
     IF @quantity <= 0
         THROW 50042, N'Quantity must be greater than zero.', 1;
 
@@ -155,87 +201,69 @@ BEGIN
     IF @stock < @quantity
         THROW 50044, N'Insufficient stock inventory.', 1;
 
-    IF EXISTS (SELECT 1 FROM ticket_items WHERE ticket_id = @ticket_id AND part_id = @part_id)
+    -- Nếu đã có linh kiện thì cộng dồn số lượng, ngược lại chèn mới
+    IF EXISTS (SELECT 1 FROM invoice_items WHERE invoice_id = @invoice_id AND part_id = @part_id)
     BEGIN
-        UPDATE ticket_items
+        UPDATE invoice_items
         SET quantity = quantity + @quantity
-        WHERE ticket_id = @ticket_id AND part_id = @part_id;
+        WHERE invoice_id = @invoice_id AND part_id = @part_id;
     END
     ELSE
     BEGIN
-        INSERT INTO ticket_items (ticket_id, part_id, quantity, unit_price)
-        VALUES (@ticket_id, @part_id, @quantity, @unit_price);
+        INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price)
+        VALUES (@invoice_id, @part_id, @quantity, @unit_price);
     END
+
+    SELECT id AS invoice_id, labor_fee, discount_amount, total_amount 
+    FROM invoices WHERE id = @invoice_id;
 END;
 GO
 ```
 
 ---
 
-### 2.4. `dbo.sp_checkout_ticket`: Quyết toán thanh toán thu ngân
+### 2.5. `dbo.sp_checkout_invoice`: Quyết toán thanh toán thu ngân
 - **Phân hệ**: Quầy Thu Ngân (Cashier Desk).
 - **Quy trình nghiệp vụ**:
-  1. Kiểm tra phiếu tồn tại $\rightarrow$ Báo lỗi `50030`.
-  2. Đảm bảo mỗi phiếu chỉ được xuất đúng 1 hóa đơn duy nhất $\rightarrow$ Báo lỗi `50032` nếu hóa đơn đã tồn tại.
-  3. **Chính sách ưu đãi tự động**:
-     - Nếu phiếu là `warranty` (bảo hành) hoặc `re_repair` (sửa lại do lỗi cũ), hệ thống tự động thiết lập mức chiết khấu:
-       $$\text{discount} = \text{labor\_fee} + \text{parts\_total}$$
-       Dẫn đến tổng thực thanh toán $\text{total\_amount} = 0$.
-     - Nếu là dịch vụ thông thường (`out_of_warranty`), tính đủ: $\text{labor\_fee} + \text{parts\_total}$.
-  4. **Giao dịch nguyên tử (ACID Transaction)**:
-     - Tạo hóa đơn mới trong bảng `invoices` với `paid_at = GETDATE()`.
-     - Sao chép toàn bộ linh kiện từ bảng `ticket_items` sang bảng quyết toán tài chính `invoice_items`.
-     - Cập nhật trạng thái phiếu sửa chữa: `UPDATE tickets SET status = 'paid'`.
+  1. Kiểm tra hóa đơn tồn tại $\rightarrow$ Báo lỗi `50050`.
+  2. Ràng buộc: Chỉ cho phép quyết toán thanh toán khi quá trình sửa chữa đã hoàn thành (`ticket.status IN ('completed', 'delivered')`) $\rightarrow$ Báo lỗi `50052`.
+  3. **Giao dịch nguyên tử (ACID Transaction)**:
+     - Cập nhật hóa đơn sang trạng thái `paid`, lưu phương thức thanh toán (`cash`, `bank_transfer`, `credit_card`) và mốc thời gian `paid_at = GETDATE()`.
+     - Tự động chuyển trạng thái phiếu sang `delivered` (đã bàn giao khách).
      - `COMMIT` giao dịch an toàn; nếu có bất kỳ lỗi nào xảy ra sẽ lập tức `ROLLBACK`.
 
 ```sql
-CREATE OR ALTER PROCEDURE dbo.sp_checkout_ticket
-    @ticket_id      INT,
-    @labor_fee      DECIMAL(18,2) = 0,
-    @payment_method VARCHAR(30) = 'cash',
-    @cashier_id     INT = NULL,
-    @invoice_id     INT OUTPUT
+CREATE OR ALTER PROCEDURE dbo.sp_checkout_invoice
+    @invoice_id     INT,
+    @payment_method VARCHAR(30) = 'cash'
 AS
 BEGIN
     SET NOCOUNT ON;
+    DECLARE @ticket_id INT, @inv_status VARCHAR(30), @ticket_status VARCHAR(30);
 
-    IF NOT EXISTS (SELECT 1 FROM tickets WHERE id = @ticket_id)
-        THROW 50030, N'Ticket not found.', 1;
+    SELECT @ticket_id = inv.ticket_id, @inv_status = inv.status, @ticket_status = t.status
+    FROM invoices inv
+    JOIN tickets t ON t.id = inv.ticket_id
+    WHERE inv.id = @invoice_id;
 
-    IF EXISTS (SELECT 1 FROM invoices WHERE ticket_id = @ticket_id)
-        THROW 50032, N'An invoice already exists for this ticket.', 1;
-
-    DECLARE @ticket_type VARCHAR(20), @discount DECIMAL(18,2) = 0, @parts_total DECIMAL(18,2) = 0;
-    SELECT @ticket_type = ticket_type FROM tickets WHERE id = @ticket_id;
-    SELECT @parts_total = dbo.fn_calculate_ticket_parts_total(@ticket_id);
-
-    -- Tự động miễn phí 100% tiền công và linh kiện nếu là diện bảo hành
-    IF @ticket_type IN ('warranty', 're_repair')
-    BEGIN
-        SET @discount = @labor_fee + @parts_total;
-    END
-
-    DECLARE @total DECIMAL(18,2) = @labor_fee + @parts_total - @discount;
-    IF @total < 0 SET @total = 0;
+    IF @ticket_id IS NULL
+        THROW 50050, N'Invoice not found.', 1;
+    IF @ticket_status NOT IN ('completed', 'delivered')
+        THROW 50052, N'Checkout only allowed when repair is completed.', 1;
 
     BEGIN TRY
         BEGIN TRAN;
-            INSERT INTO invoices (ticket_id, created_at, labor_fee, discount_amount, total_amount, payment_method, paid_at)
-            VALUES (@ticket_id, GETDATE(), @labor_fee, @discount, @total, @payment_method, GETDATE());
+            UPDATE invoices 
+            SET status = 'paid', 
+                payment_method = @payment_method, 
+                paid_at = ISNULL(paid_at, GETDATE()),
+                updated_at = GETDATE()
+            WHERE id = @invoice_id;
 
-            SET @invoice_id = SCOPE_IDENTITY();
-
-            -- Sao chép danh mục linh kiện sang chi tiết hóa đơn
-            INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price)
-            SELECT @invoice_id, part_id, quantity, unit_price
-            FROM ticket_items
-            WHERE ticket_id = @ticket_id;
-
-            -- Cập nhật trạng thái phiếu đã thanh toán
+            -- Chuyển trạng thái phiếu sang delivered
             UPDATE tickets 
-            SET status = 'paid', updated_at = GETDATE() 
-            WHERE id = @ticket_id;
-
+            SET status = 'delivered', updated_at = GETDATE() 
+            WHERE id = @ticket_id AND status <> 'delivered';
         COMMIT;
     END TRY
     BEGIN CATCH
@@ -248,7 +276,7 @@ GO
 
 ---
 
-### 2.5. `dbo.sp_backup_database` & `dbo.sp_restore_database`: Quản trị an toàn dữ liệu
+### 2.6. `dbo.sp_backup_database` & `dbo.sp_restore_database`: Quản trị an toàn dữ liệu
 
 #### A. Sao lưu CSDL (`dbo.sp_backup_database`):
 - Thực hiện sao lưu Full Backup ra ổ đĩa với cờ nén `COMPRESSION` giúp tiết kiệm 70% dung lượng đĩa và tăng tốc độ I/O.

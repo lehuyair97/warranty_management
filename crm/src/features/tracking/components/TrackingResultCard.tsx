@@ -105,7 +105,14 @@ export const TrackingResultCard = React.memo<TrackingResultCardProps>(({ ticket 
 
           {ticket.invoices.map((inv: PublicTicketDetail['invoices'][number]) => (
             <div key={inv.id} className="flex justify-between items-center text-xs pt-1">
-              <span>Hóa đơn #{inv.id}</span>
+              <div className="flex items-center gap-2">
+                <span>Hóa đơn #{inv.id}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                  inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {inv.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                </span>
+              </div>
               <span className="font-bold text-sm text-stone-900">
                 {formatVND(Number(inv.totalAmount))}
               </span>

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { EmployeeRole, TicketStatus } from '@/common/constants';
+import { EmployeeRole, InvoiceStatus, TicketStatus } from '@/common/constants';
 import { PaginatedResultDto } from '@/common/dto/paginated-result.dto';
 import { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import {
@@ -128,9 +128,9 @@ export class TicketsService {
         'device.customer',
         'receptionist',
         'technician',
-        'items',
-        'items.part',
         'invoices',
+        'invoices.items',
+        'invoices.items.part',
         'statusHistory',
         'statusHistory.technician',
       ],
@@ -265,39 +265,6 @@ export class TicketsService {
    * - Technicians can only update their own tickets (or claim unassigned ones).
    * - Technicians cannot change the assigned technician on an already assigned ticket.
    */
-  
-  async addPart(ticketId: number, partId: number, quantity: number) {
-    const rawResult: { ticket_id: number }[] = await this.dataSource.query(
-      `
-      EXEC dbo.sp_add_ticket_part
-        @ticket_id = @0,
-        @part_id = @1,
-        @quantity = @2;
-      SELECT @0 AS ticket_id;
-      `,
-      [ticketId, partId, quantity],
-    );
-    return this.findOne(ticketId);
-  }
-
-  async checkout(ticketId: number, laborFee: number, paymentMethod: string, cashierId: number) {
-    const rawResult: { invoice_id: number }[] = await this.dataSource.query(
-      `
-      DECLARE @out_id INT;
-      EXEC dbo.sp_checkout_ticket
-        @ticket_id = @0,
-        @labor_fee = @1,
-        @payment_method = @2,
-        @cashier_id = @3,
-        @invoice_id = @out_id OUTPUT;
-      SELECT @out_id AS invoice_id;
-      `,
-      [ticketId, laborFee, paymentMethod, cashierId],
-    );
-    if (!rawResult.length) throw new NotFoundException('Checkout failed');
-    return rawResult[0];
-  }
-
   async processTicket(
     ticketId: number,
     processDto: ProcessTicketDto,
@@ -410,7 +377,7 @@ export class TicketsService {
         : null,
       invoices: ticket.invoices.map((inv) => ({
         id: inv.id,
-        
+        status: inv.status,
         laborFee: Number(inv.laborFee),
         discountAmount: Number(inv.discountAmount),
         totalAmount: Number(inv.totalAmount),
@@ -425,7 +392,9 @@ export class TicketsService {
    */
   async remove(id: number): Promise<{ success: boolean; message: string }> {
     const ticket = await this.findOne(id);
-    const hasPaidInvoice = ticket.status === "paid";
+    const hasPaidInvoice = ticket.invoices?.some(
+      (inv) => inv.status === InvoiceStatus.PAID,
+    );
     if (hasPaidInvoice) {
       throw new BadRequestException('Không thể xóa phiếu sửa chữa đã phát sinh hóa đơn đã thanh toán.');
     }

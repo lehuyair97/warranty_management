@@ -7,7 +7,7 @@ import { formatTicketCode } from '@/common/helpers/ticket.helper';
 import { useCheckoutInvoice, useInvoices } from '@/hooks/useInvoices';
 import { CheckoutFormValues, checkoutSchema } from '@/schemas/checkout.schema';
 import { uiActions } from '@/stores/ui.store';
-import { getErrorMessage, Invoice, InvoiceQueryParams, PaymentMethod } from '@/types';
+import { getErrorMessage, Invoice, InvoiceQueryParams, InvoiceStatus, PaymentMethod } from '@/types';
 
 export function useCashierBilling() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -15,10 +15,12 @@ export function useCashierBilling() {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(10);
+  /** Payment status filter for the cashier invoice list; empty string means all statuses. */
+  const [filterStatus, setFilterStatus] = useState<'' | InvoiceStatus>('');
 
   const queryParams: InvoiceQueryParams = useMemo(() => {
-    return { page, limit: pageSize };
-  }, [page, pageSize]);
+    return { page, limit: pageSize, ...(filterStatus ? { status: filterStatus } : {}) };
+  }, [page, pageSize, filterStatus]);
 
   const { data: invoicesData, isLoading, refetch } = useInvoices(queryParams);
   const checkoutMutation = useCheckoutInvoice();
@@ -80,6 +82,11 @@ export function useCashierBilling() {
     page,
     setPage,
     pageSize,
+    filterStatus,
+    setFilterStatus: (value: '' | InvoiceStatus) => {
+      setFilterStatus(value);
+      setPage(1);
+    },
     totalPages,
     totalItems,
     selectedInvoice,

@@ -12,7 +12,7 @@ import { getInvoiceColumns } from '@/features/invoices/config/invoices.columns';
 import { api } from '@/lib/api-client';
 import { databaseAdminService } from '@/services/database-admin.service';
 import { uiActions } from '@/stores/ui.store';
-import { Invoice, PaginationMeta } from '@/types';
+import { Invoice, InvoiceStatus, PaginationMeta } from '@/types';
 
 /**
  * Invoices Directory Screen (~70 lines).
@@ -23,14 +23,18 @@ export default function InvoicesPage() {
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(10);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'' | InvoiceStatus>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const { data, isLoading, refetch } = useQuery<{ items: Invoice[]; meta: PaginationMeta }>({
-    queryKey: ['invoices', page, pageSize, searchTerm],
+    queryKey: ['invoices', page, pageSize, searchTerm, statusFilter],
     queryFn: async () => {
       const params: Record<string, unknown> = { page, limit: pageSize };
       if (searchTerm.trim()) {
         params.search = searchTerm.trim();
+      }
+      if (statusFilter) {
+        params.status = statusFilter;
       }
       return api.get<{ items: Invoice[]; meta: PaginationMeta }>('/invoices', params);
     },
@@ -101,8 +105,14 @@ export default function InvoicesPage() {
           setSearchTerm(val);
           setPage(1);
         }}
+        statusFilter={statusFilter}
+        onStatusChange={(val) => {
+          setStatusFilter(val);
+          setPage(1);
+        }}
         onReset={() => {
           setSearchTerm('');
+          setStatusFilter('');
           setPage(1);
         }}
       />

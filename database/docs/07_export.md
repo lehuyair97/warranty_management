@@ -59,7 +59,7 @@ GO
 Xuất toàn bộ lịch sử thanh toán các hóa đơn dịch vụ đã phát hành để đối soát doanh thu tài chính, tiền công thợ, số tiền miễn giảm bảo hành và hình thức thanh toán.
 
 #### Đặc tả kỹ thuật:
-- Lấy thông tin phiếu liên kết `ticket_id`, tiền công `labor_fee`, tiền giảm trừ `discount_amount`, tổng thực thu `total_amount`.
+- Lấy thông tin phiếu liên kết `ticket_id`, trạng thái thanh toán `status` (`unpaid` / `paid`), tiền công `labor_fee`, tiền giảm trừ `discount_amount`, tổng thực thu `total_amount`.
 - Phương thức thanh toán `payment_method` (`cash`, `bank_transfer`, `credit_card`).
 - Thời điểm thu tiền `paid_at` và ngày lập hóa đơn `created_at`.
 
@@ -72,6 +72,7 @@ BEGIN
     SELECT 
         i.id,
         i.ticket_id,
+        i.status,
         i.labor_fee,
         i.discount_amount,
         i.total_amount,

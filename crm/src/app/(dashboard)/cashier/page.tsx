@@ -59,6 +59,7 @@ export default function CashierBillingPage() {
       {/* Checkout Modal */}
       {selectedTicket && (
         <TicketCheckoutModal
+          key={selectedTicket.id}
           ticket={selectedTicket}
           isOpen={!!selectedTicket}
           onClose={() => {

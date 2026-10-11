@@ -72,9 +72,18 @@ export function InvoiceDetailModal({ invoiceId, isOpen, onClose }: InvoiceDetail
           <div className="grid grid-cols-2 gap-4 text-sm bg-sand-50/60 p-4 rounded-xl border border-sand-200">
             <div>
               <p className="text-xs text-stone-500 font-medium">Mã hóa đơn</p>
-              <p className="font-mono font-bold text-base text-stone-900">
-                INV-{invoice.id?.toString().padStart(5, '0')}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="font-mono font-bold text-base text-stone-900">
+                  INV-{invoice.id?.toString().padStart(5, '0')}
+                </span>
+                <Badge
+                  variant={invoice.status === 'paid' ? 'success' : 'warning'}
+                  size="sm"
+                  className="font-medium text-[11px]"
+                >
+                  {invoice.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                </Badge>
+              </div>
             </div>
             <div className="text-right">
               <p className="text-xs text-stone-500 font-medium">Thời gian xuất hóa đơn</p>

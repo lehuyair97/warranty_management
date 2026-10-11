@@ -595,10 +595,10 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                       {formatVND(Number(inv.totalAmount))}
                     </span>
                     <Badge
-                      variant="success"
+                      variant={inv.status === 'paid' ? 'success' : 'warning'}
                       size="sm"
                     >
-                      Đã thanh toán
+                      {inv.status === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'}
                     </Badge>
                   </div>
                 </div>

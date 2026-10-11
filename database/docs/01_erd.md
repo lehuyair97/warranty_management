@@ -14,8 +14,6 @@ erDiagram
     employees ||--o{ tickets : "tiếp nhận / phân công (1:N)"
     employees ||--o{ tickets : "sửa chữa / phụ trách (1:N)"
     devices ||--o{ tickets : "yêu cầu dịch vụ (1:N)"
-    tickets ||--o{ ticket_items : "sử dụng linh kiện (1:N)"
-    parts ||--o{ ticket_items : "được gắn vào phiếu (1:N)"
     tickets ||--o{ invoices : "quyết toán thanh toán (1:1/1:N)"
     invoices ||--o{ invoice_items : "chi tiết hóa đơn (1:N)"
     parts ||--o{ invoice_items : "xuất theo hóa đơn (1:N)"
@@ -75,7 +73,7 @@ erDiagram
         int device_id FK "Thiết bị bảo hành"
         int receptionist_id FK "Lễ tân tiếp nhận"
         int technician_id FK "KTV phụ trách sửa chữa"
-        varchar ticket_type "warranty, out_of_warranty, re_repair"
+        varchar ticket_type "warranty, repair, re_repair"
         nvarchar issue_description "Mô tả lỗi từ khách hàng"
         nvarchar initial_condition "Tình trạng ngoại quan ban đầu"
         nvarchar accessories "Phụ kiện gửi kèm"
@@ -83,25 +81,16 @@ erDiagram
         nvarchar fault_cause "Nguyên nhân hư hỏng (KTV xác định)"
         nvarchar repair_solution "Phương án khắc phục"
         decimal estimated_cost "Chi phí dự kiến"
-        varchar status "Trạng thái phiếu sửa chữa"
+        varchar status "received, inspecting, waiting_for_parts, repairing, completed, delivered, cancelled"
         datetime2 completed_at "Thời điểm hoàn thành sửa chữa"
         datetime2 created_at "Thời điểm tạo"
         datetime2 updated_at "Thời điểm cập nhật"
     }
 
-    ticket_items {
-        int id PK "IDENTITY"
-        int ticket_id FK "Phiếu sửa chữa"
-        int part_id FK "Linh kiện thay thế"
-        int quantity "Số lượng xuất dùng"
-        decimal unit_price "Đơn giá xuất kho"
-        decimal total_price "Thành tiền (PERSISTED = quantity * unit_price)"
-        datetime2 created_at "Thời điểm thêm"
-    }
-
     invoices {
         int id PK "IDENTITY"
         int ticket_id FK "Phiếu sửa chữa liên kết"
+        varchar status "unpaid, paid"
         decimal labor_fee "Tiền công sửa chữa"
         decimal discount_amount "Số tiền miễn giảm / ưu đãi"
         decimal total_amount "Thực thanh toán (labor + parts - discount)"
@@ -221,61 +210,47 @@ Thực thể trung tâm điều phối toàn bộ vòng đời tiếp nhận, ch
 | `fault_cause` | `NVARCHAR(MAX)` | NULL | - | Nguyên nhân hư hỏng sau khi chẩn đoán |
 | `repair_solution` | `NVARCHAR(MAX)` | NULL | - | Phương án kỹ thuật xử lý |
 | `estimated_cost` | `DECIMAL(18,2)` | NOT NULL | DEFAULT 0, CHECK (`estimated_cost >= 0`) | Chi phí dự kiến báo khách |
-| `status` | `VARCHAR(20)` | NOT NULL | DEFAULT 'received', CHECK (`status IN ('received','assigned','diagnosing','waiting_parts','repaired','completed','paid','delivered','cancelled')`) | Trạng thái phiếu sửa chữa |
+| `status` | `VARCHAR(30)` | NOT NULL | DEFAULT 'received', CHECK (`status IN ('received','inspecting','waiting_for_parts','repairing','completed','delivered','cancelled')`) | Trạng thái phiếu sửa chữa |
 | `completed_at` | `DATETIME2` | NULL | - | Thời điểm KTV bấm hoàn tất |
 | `created_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE() | Thời điểm tạo bản ghi |
 | `updated_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE() | Thời điểm cập nhật bản ghi |
 
 ---
 
-### 2.6. Bảng `ticket_items` (Linh kiện xuất vào phiếu sửa chữa)
-Ghi nhận linh kiện mà Kỹ thuật viên xuất từ kho để lắp ráp vào máy của khách trong quá trình sửa.
-
-| Tên Cột | Kiểu Dữ Liệu | Nullable | Khóa / Ràng Buộc | Mô Tả Nghiệp Vụ |
-| :--- | :--- | :--- | :--- | :--- |
-| `id` | `INT` | NOT NULL | **PK**, IDENTITY(1,1) | Mã dòng linh kiện gắn vào phiếu |
-| `ticket_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `tickets(id)` (CASCADE) | Phiếu sửa chữa liên kết |
-| `part_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `parts(id)` (NO ACTION) | Linh kiện xuất kho |
-| `quantity` | `INT` | NOT NULL | CHECK (`quantity > 0`) | Số lượng linh kiện xuất dùng |
-| `unit_price` | `DECIMAL(18,2)` | NOT NULL | CHECK (`unit_price >= 0`) | Đơn giá xuất linh kiện tại thời điểm làm |
-| `total_price` | `DECIMAL(18,2)` | NOT NULL | **AS (`quantity` * `unit_price`) PERSISTED** | Thành tiền (cột tính toán tự động lưu vật lý) |
-| `created_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE() | Thời điểm xuất kho linh kiện |
-
----
-
-### 2.7. Bảng `invoices` (Hóa đơn thanh toán)
+### 2.6. Bảng `invoices` (Hóa đơn thanh toán)
 Lưu trữ chứng từ tài chính khi thu ngân quyết toán và trả máy cho khách hàng.
 
 | Tên Cột | Kiểu Dữ Liệu | Nullable | Khóa / Ràng Buộc | Mô Tả Nghiệp Vụ |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `INT` | NOT NULL | **PK**, IDENTITY(1,1) | Mã số hóa đơn |
 | `ticket_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `tickets(id)` (NO ACTION), INDEX | Phiếu sửa chữa được quyết toán |
+| `status` | `VARCHAR(30)` | NOT NULL | DEFAULT 'unpaid', CHECK (`status IN ('unpaid','paid')`), INDEX | Trạng thái thanh toán: Chưa thanh toán (`unpaid`), Đã thanh toán (`paid`) |
 | `labor_fee` | `DECIMAL(18,2)` | NOT NULL | DEFAULT 0, CHECK (`labor_fee >= 0`) | Tiền công kỹ thuật |
 | `discount_amount`| `DECIMAL(18,2)` | NOT NULL | DEFAULT 0, CHECK (`discount_amount >= 0`)| Số tiền chiết khấu / miễn trừ bảo hành |
-| `total_amount` | `DECIMAL(18,2)` | NOT NULL | CHECK (`total_amount >= 0`) | Thực thu từ khách |
-| `payment_method` | `VARCHAR(30)` | NOT NULL | DEFAULT 'cash', CHECK (`payment_method IN ('cash','bank_transfer','credit_card')`) | Hình thức: Tiền mặt, Chuyển khoản, Thẻ |
+| `total_amount` | `DECIMAL(18,2)` | NOT NULL | CHECK (`total_amount >= 0`) | Thực thu từ khách (labor_fee + parts - discount) |
+| `payment_method` | `VARCHAR(30)` | NULL | CHECK (`payment_method IN ('cash','bank_transfer','credit_card')`) | Hình thức: Tiền mặt, Chuyển khoản, Thẻ |
 | `paid_at` | `DATETIME2` | NULL | - | Thời điểm thu tiền thành công |
 | `created_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE(), INDEX | Ngày tạo hóa đơn |
 | `updated_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE() | Ngày cập nhật |
 
 ---
 
-### 2.8. Bảng `invoice_items` (Chi tiết linh kiện trên hóa đơn)
-Lưu chi tiết các linh kiện được quyết toán tài chính trên hóa đơn (được copy từ `ticket_items` sang khi thanh toán).
+### 2.7. Bảng `invoice_items` (Chi tiết linh kiện xuất dùng và tính tiền)
+Lưu chi tiết các linh kiện xuất kho phục vụ sửa chữa và quyết toán tài chính trên hóa đơn.
 
 | Tên Cột | Kiểu Dữ Liệu | Nullable | Khóa / Ràng Buộc | Mô Tả Nghiệp Vụ |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | `INT` | NOT NULL | **PK**, IDENTITY(1,1) | Mã dòng chi tiết hóa đơn |
-| `invoice_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `invoices(id)` (CASCADE) | Hóa đơn liên kết |
-| `part_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `parts(id)` (NO ACTION) | Linh kiện thanh toán |
-| `quantity` | `INT` | NOT NULL | CHECK (`quantity > 0`) | Số lượng tính tiền |
-| `unit_price` | `DECIMAL(18,2)` | NOT NULL | CHECK (`unit_price >= 0`) | Đơn giá xuất hóa đơn |
+| `invoice_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `invoices(id)` (CASCADE), INDEX | Hóa đơn liên kết |
+| `part_id` | `INT` | NOT NULL | **FK** $\rightarrow$ `parts(id)` (NO ACTION), INDEX | Linh kiện xuất kho thay thế |
+| `quantity` | `INT` | NOT NULL | CHECK (`quantity > 0`) | Số lượng xuất dùng |
+| `unit_price` | `DECIMAL(18,2)` | NOT NULL | CHECK (`unit_price >= 0`) | Đơn giá xuất tại thời điểm lập hóa đơn |
 | `total_price` | `DECIMAL(18,2)` | NOT NULL | **AS (`quantity` * `unit_price`) PERSISTED** | Thành tiền lưu vật lý |
-| `created_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE() | Ngày tạo |
+| `created_at` | `DATETIME2` | NOT NULL | DEFAULT GETDATE() | Ngày xuất linh kiện |
 
 ---
 
-### 2.9. Bảng `ticket_status_history` (Nhật ký trạng thái phiếu)
+### 2.8. Bảng `ticket_status_history` (Nhật ký trạng thái phiếu)
 Bảng Audit Log lưu lại toàn bộ tiến trình lịch sử thay đổi trạng thái của phiếu (được ghi tự động bằng Trigger).
 
 | Tên Cột | Kiểu Dữ Liệu | Nullable | Khóa / Ràng Buộc | Mô Tả Nghiệp Vụ |

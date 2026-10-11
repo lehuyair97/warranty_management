@@ -98,6 +98,24 @@ export function getInvoiceColumns({
       ),
     },
     {
+      key: 'status',
+      header: 'Trạng Thái',
+      width: '130px',
+      className: 'whitespace-nowrap',
+      render: (row) => {
+        const isPaid = row.status === 'paid';
+        return (
+          <Badge
+            variant={isPaid ? 'success' : 'warning'}
+            size="sm"
+            className="font-medium text-[11px] whitespace-nowrap"
+          >
+            {isPaid ? 'Đã thanh toán' : 'Chưa thanh toán'}
+          </Badge>
+        );
+      },
+    },
+    {
       key: 'paymentMethod',
       header: 'PT Thanh Toán',
       width: '130px',

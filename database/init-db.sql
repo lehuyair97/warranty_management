@@ -116,7 +116,7 @@ CREATE TABLE tickets (
     repair_solution NVARCHAR(500) NULL,
     estimated_cost DECIMAL(18,2) NOT NULL CONSTRAINT df_tickets_estimated_cost DEFAULT 0,
     status VARCHAR(30) NOT NULL CONSTRAINT ck_tickets_status CHECK (status IN (
-        'received', 'inspecting', 'waiting_for_parts', 'repairing', 'completed', 'paid', 'delivered', 'cancelled'
+        'received', 'inspecting', 'waiting_for_parts', 'repairing', 'completed', 'delivered', 'cancelled'
     )),
     completed_at DATETIME NULL,
     created_at DATETIME NOT NULL CONSTRAINT df_tickets_created_at DEFAULT GETDATE(),
@@ -136,31 +136,13 @@ CREATE INDEX ix_tickets_received_at ON tickets(received_at DESC);
 CREATE INDEX ix_tickets_status_received_at ON tickets(status, received_at DESC);
 GO
 
-
--- 1.5.5 Ticket Items Table (Parts used during repair)
-CREATE TABLE ticket_items (
-    id INT IDENTITY(1,1) CONSTRAINT pk_ticket_items PRIMARY KEY,
-    ticket_id INT NOT NULL,
-    part_id INT NOT NULL,
-    quantity INT NOT NULL CONSTRAINT ck_ticket_items_quantity CHECK (quantity > 0),
-    unit_price DECIMAL(18,2) NOT NULL CONSTRAINT ck_ticket_items_unit_price CHECK (unit_price >= 0),
-    total_price AS (quantity * unit_price) PERSISTED,
-    created_at DATETIME NOT NULL CONSTRAINT df_ticket_items_created_at DEFAULT GETDATE(),
-    CONSTRAINT fk_ticket_items_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id),
-    CONSTRAINT fk_ticket_items_part FOREIGN KEY (part_id) REFERENCES parts(id)
-);
-GO
-
-CREATE INDEX ix_ticket_items_ticket_id ON ticket_items(ticket_id);
-CREATE INDEX ix_ticket_items_part_id ON ticket_items(part_id);
-GO
-
 -- 1.6. Invoices Table
 CREATE TABLE invoices (
     id INT IDENTITY(1,1) CONSTRAINT pk_invoices PRIMARY KEY,
     ticket_id INT NOT NULL,
     created_at DATETIME NOT NULL CONSTRAINT df_invoices_created_at DEFAULT GETDATE(),
-    
+    status VARCHAR(30) NOT NULL CONSTRAINT df_invoices_status DEFAULT 'unpaid'
+        CONSTRAINT ck_invoices_status CHECK (status IN ('unpaid', 'paid')),
     labor_fee DECIMAL(18,2) NOT NULL CONSTRAINT df_invoices_labor_fee DEFAULT 0,
     discount_amount DECIMAL(18,2) NOT NULL CONSTRAINT df_invoices_discount DEFAULT 0,
     total_amount DECIMAL(18,2) NOT NULL CONSTRAINT df_invoices_total_amount DEFAULT 0,
@@ -172,7 +154,7 @@ CREATE TABLE invoices (
 GO
 
 CREATE INDEX ix_invoices_ticket_id ON invoices(ticket_id);
-CREATE INDEX ix_invoices_created_at ON invoices(created_at DESC);
+CREATE INDEX ix_invoices_status_created_at ON invoices(status, created_at DESC);
 GO
 
 -- 1.7. Invoice Items Table (Replaces ChiTietPhieu)
@@ -217,17 +199,6 @@ GO
 -- ============================================================
 
 -- 2.1. Calculate total parts cost for a given invoice
-CREATE OR ALTER FUNCTION dbo.fn_calculate_ticket_parts_total (@ticket_id INT)
-RETURNS DECIMAL(18,2)
-AS
-BEGIN
-    RETURN ISNULL((SELECT SUM(quantity * unit_price)
-                   FROM ticket_items
-                   WHERE ticket_id = @ticket_id), 0);
-END;
-GO
-
--- 2.1.b Calculate total parts cost for a given invoice
 CREATE OR ALTER FUNCTION dbo.fn_calculate_parts_total (@invoice_id INT)
 RETURNS DECIMAL(18,2)
 AS
@@ -270,7 +241,7 @@ RETURN
            tech.full_name AS technician_name,
            inv.id AS invoice_id,
            inv.total_amount,
-           CASE WHEN inv.id IS NOT NULL THEN 'paid' ELSE 'unpaid' END AS payment_status
+           inv.status AS payment_status
     FROM tickets t
     LEFT JOIN employees tech ON tech.id = t.technician_id
     LEFT JOIN invoices inv ON inv.ticket_id = t.id
@@ -283,8 +254,8 @@ GO
 -- ============================================================
 
 -- 3.1. Inventory stock reduction / refund on invoice item modification
-CREATE OR ALTER TRIGGER trg_ticket_items_stock
-ON ticket_items AFTER INSERT, UPDATE, DELETE
+CREATE OR ALTER TRIGGER trg_invoice_items_stock
+ON invoice_items AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -323,6 +294,64 @@ BEGIN
 END;
 GO
 
+-- 3.2. Update invoice total_amount on item changes
+CREATE OR ALTER TRIGGER trg_invoices_total_amount
+ON invoice_items AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    ;WITH affected_invoices AS (
+        SELECT invoice_id FROM inserted
+        UNION
+        SELECT invoice_id FROM deleted
+    )
+    UPDATE inv
+    SET inv.discount_amount = CASE 
+            WHEN t.ticket_type IN ('warranty', 're_repair') 
+            THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id)
+            ELSE inv.discount_amount 
+        END,
+        inv.total_amount = CASE 
+            WHEN t.ticket_type IN ('warranty', 're_repair') THEN 0
+            WHEN (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END)) < 0 THEN 0
+            ELSE (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END))
+        END,
+        inv.updated_at = GETDATE()
+    FROM invoices inv
+    JOIN tickets t ON t.id = inv.ticket_id
+    JOIN affected_invoices a ON a.invoice_id = inv.id
+    WHERE inv.status = 'unpaid';
+END;
+GO
+
+-- 3.3. Update invoice total_amount when labor_fee or discount_amount changes
+CREATE OR ALTER TRIGGER trg_invoices_labor_update
+ON invoices AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM deleted) OR UPDATE(labor_fee) OR UPDATE(discount_amount)
+    BEGIN
+        UPDATE inv
+        SET inv.discount_amount = CASE 
+                WHEN t.ticket_type IN ('warranty', 're_repair') 
+                THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id)
+                ELSE inv.discount_amount 
+            END,
+            inv.total_amount = CASE 
+                WHEN t.ticket_type IN ('warranty', 're_repair') THEN 0
+                WHEN (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END)) < 0 THEN 0
+                ELSE (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END))
+            END,
+            inv.updated_at = GETDATE()
+        FROM invoices inv
+        JOIN tickets t ON t.id = inv.ticket_id
+        JOIN inserted i ON i.id = inv.id
+        WHERE inv.status = 'unpaid';
+    END
+END;
+GO
+
 -- 3.4. Tickets workflow guard & state machine validation
 CREATE OR ALTER TRIGGER trg_tickets_workflow_guard
 ON tickets AFTER INSERT, UPDATE
@@ -333,7 +362,7 @@ BEGIN
     -- Validate technician assignment: Cannot repair or complete without technician
     IF EXISTS (
         SELECT 1 FROM inserted i
-        WHERE i.status IN ('repairing', 'completed', 'paid', 'delivered')
+        WHERE i.status IN ('repairing', 'completed', 'delivered')
           AND i.technician_id IS NULL
     )
     BEGIN
@@ -347,7 +376,7 @@ BEGIN
            SELECT 1 FROM inserted i
            JOIN deleted d ON d.id = i.id
            WHERE (d.status = 'delivered' AND i.status <> 'delivered') -- Cannot reopen delivered ticket
-              OR (i.status = 'delivered' AND d.status NOT IN ('completed', 'paid', 'delivered')) -- Completed or paid can be delivered
+              OR (i.status = 'delivered' AND d.status NOT IN ('completed', 'delivered')) -- Completed can be delivered
        )
     BEGIN
         ROLLBACK TRANSACTION;
@@ -362,7 +391,7 @@ BEGIN
             updated_at = GETDATE()
         FROM tickets t
         JOIN inserted i ON i.id = t.id
-        WHERE i.status IN ('completed', 'paid', 'delivered')
+        WHERE i.status IN ('completed', 'delivered')
           AND t.completed_at IS NULL;
     END
 END;
@@ -396,7 +425,7 @@ GO
 
 -- 3.6. Financial Immutability: Freeze spare parts modifications on paid invoices
 CREATE OR ALTER TRIGGER trg_invoice_items_freeze_paid
-ON invoice_items AFTER UPDATE, DELETE
+ON invoice_items AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -405,12 +434,18 @@ BEGIN
         SELECT 1 
         FROM (SELECT invoice_id FROM inserted UNION SELECT invoice_id FROM deleted) x
         JOIN invoices inv ON inv.id = x.invoice_id
+        WHERE inv.status = 'paid'
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50035, N'Cannot modify or remove spare parts on an already issued invoice.', 1;
+        THROW 50035, N'Cannot add, modify, or remove spare parts on an already paid invoice.', 1;
     END
 END;
+GO
+
+EXEC sp_settriggerorder @triggername = 'trg_invoice_items_freeze_paid', @order = 'First', @stmttype = 'INSERT';
+EXEC sp_settriggerorder @triggername = 'trg_invoice_items_freeze_paid', @order = 'First', @stmttype = 'UPDATE';
+EXEC sp_settriggerorder @triggername = 'trg_invoice_items_freeze_paid', @order = 'First', @stmttype = 'DELETE';
 GO
 
 -- 3.7. Financial Immutability: Freeze financial fee edits on paid invoices
@@ -423,12 +458,12 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM inserted i
         JOIN deleted d ON d.id = i.id
-        WHERE 1=1
+        WHERE d.status = 'paid'
           AND (
             d.labor_fee <> i.labor_fee 
             OR d.discount_amount <> i.discount_amount 
             OR d.total_amount <> i.total_amount
-            
+            OR i.status <> 'paid'
           )
     )
     BEGIN
@@ -497,7 +532,7 @@ BEGIN
     IF @current_status IS NULL
         THROW 50020, N'Ticket not found.', 1;
 
-    IF @status NOT IN ('received', 'inspecting', 'waiting_for_parts', 'repairing', 'completed', 'paid', 'delivered', 'cancelled')
+    IF @status NOT IN ('received', 'inspecting', 'waiting_for_parts', 'repairing', 'completed', 'delivered', 'cancelled')
         THROW 50021, N'Invalid ticket status.', 1;
 
     IF @technician_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM employees WHERE id = @technician_id AND role = 'technician')
@@ -517,21 +552,53 @@ BEGIN
 END;
 GO
 
--- 4.2.5. Add spare part to ticket
-CREATE OR ALTER PROCEDURE dbo.sp_add_ticket_part
-    @ticket_id INT,
-    @part_id   INT,
-    @quantity  INT
+-- 4.3. Create invoice for ticket
+CREATE OR ALTER PROCEDURE dbo.sp_create_invoice
+    @ticket_id    INT,
+    @labor_fee    DECIMAL(18,2) = 0,
+    @invoice_id   INT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
-    DECLARE @unit_price DECIMAL(18,2), @stock INT, @ticket_status VARCHAR(30);
 
-    SELECT @ticket_status = status FROM tickets WHERE id = @ticket_id;
-    IF @ticket_status IS NULL
-        THROW 50040, N'Ticket not found.', 1;
-    IF @ticket_status IN ('paid', 'delivered', 'cancelled')
-        THROW 50041, N'Cannot add parts to an already settled ticket.', 1;
+    IF NOT EXISTS (SELECT 1 FROM tickets WHERE id = @ticket_id)
+        THROW 50030, N'Ticket not found.', 1;
+
+    IF @labor_fee < 0
+        THROW 50031, N'Labor fee cannot be negative.', 1;
+
+    IF EXISTS (SELECT 1 FROM invoices WHERE ticket_id = @ticket_id AND status = 'unpaid')
+        THROW 50032, N'An unpaid invoice already exists for this ticket.', 1;
+
+    DECLARE @ticket_type VARCHAR(20), @discount DECIMAL(18,2) = 0;
+    SELECT @ticket_type = ticket_type FROM tickets WHERE id = @ticket_id;
+
+    -- If warranty or re_repair, auto discount 100% labor fee
+    IF @ticket_type IN ('warranty', 're_repair')
+        SET @discount = @labor_fee;
+
+    INSERT INTO invoices (ticket_id, created_at, status, labor_fee, discount_amount, total_amount)
+    VALUES (@ticket_id, GETDATE(), 'unpaid', @labor_fee, @discount, @labor_fee - @discount);
+
+    SET @invoice_id = SCOPE_IDENTITY();
+END;
+GO
+
+-- 4.4. Add spare part to invoice (handles existing item aggregation)
+CREATE OR ALTER PROCEDURE dbo.sp_add_invoice_part
+    @invoice_id INT,
+    @part_id    INT,
+    @quantity   INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @unit_price DECIMAL(18,2), @stock INT, @inv_status VARCHAR(30);
+
+    SELECT @inv_status = status FROM invoices WHERE id = @invoice_id;
+    IF @inv_status IS NULL
+        THROW 50040, N'Invoice not found.', 1;
+    IF @inv_status = 'paid'
+        THROW 50041, N'Cannot add parts to an already paid invoice.', 1;
     IF @quantity <= 0
         THROW 50042, N'Quantity must be greater than zero.', 1;
 
@@ -543,66 +610,56 @@ BEGIN
     IF @stock < @quantity
         THROW 50044, N'Insufficient stock inventory.', 1;
 
-    IF EXISTS (SELECT 1 FROM ticket_items WHERE ticket_id = @ticket_id AND part_id = @part_id)
+    -- If part already exists in invoice, increment quantity; otherwise insert
+    IF EXISTS (SELECT 1 FROM invoice_items WHERE invoice_id = @invoice_id AND part_id = @part_id)
     BEGIN
-        UPDATE ticket_items
+        UPDATE invoice_items
         SET quantity = quantity + @quantity
-        WHERE ticket_id = @ticket_id AND part_id = @part_id;
+        WHERE invoice_id = @invoice_id AND part_id = @part_id;
     END
     ELSE
     BEGIN
-        INSERT INTO ticket_items (ticket_id, part_id, quantity, unit_price)
-        VALUES (@ticket_id, @part_id, @quantity, @unit_price);
+        INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price)
+        VALUES (@invoice_id, @part_id, @quantity, @unit_price);
     END
+
+    SELECT id AS invoice_id, labor_fee, discount_amount, total_amount 
+    FROM invoices WHERE id = @invoice_id;
 END;
 GO
 
--- 4.3. Checkout ticket (creates invoice)
-CREATE OR ALTER PROCEDURE dbo.sp_checkout_ticket
-    @ticket_id      INT,
-    @labor_fee      DECIMAL(18,2) = 0,
-    @payment_method VARCHAR(30) = 'cash',
-    @cashier_id     INT = NULL,
-    @invoice_id     INT OUTPUT
+-- 4.5. Checkout invoice and mark ticket as delivered
+CREATE OR ALTER PROCEDURE dbo.sp_checkout_invoice
+    @invoice_id     INT,
+    @payment_method VARCHAR(30) = 'cash'
 AS
 BEGIN
     SET NOCOUNT ON;
+    DECLARE @ticket_id INT, @inv_status VARCHAR(30), @ticket_status VARCHAR(30);
 
-    IF NOT EXISTS (SELECT 1 FROM tickets WHERE id = @ticket_id)
-        THROW 50030, N'Ticket not found.', 1;
+    SELECT @ticket_id = inv.ticket_id, @inv_status = inv.status, @ticket_status = t.status
+    FROM invoices inv
+    JOIN tickets t ON t.id = inv.ticket_id
+    WHERE inv.id = @invoice_id;
 
-    IF EXISTS (SELECT 1 FROM invoices WHERE ticket_id = @ticket_id)
-        THROW 50032, N'An invoice already exists for this ticket.', 1;
-
-    DECLARE @ticket_type VARCHAR(20), @discount DECIMAL(18,2) = 0, @parts_total DECIMAL(18,2) = 0;
-    SELECT @ticket_type = ticket_type FROM tickets WHERE id = @ticket_id;
-    SELECT @parts_total = dbo.fn_calculate_ticket_parts_total(@ticket_id);
-
-    -- If warranty or re_repair, auto discount 100% labor fee and parts fee
-    IF @ticket_type IN ('warranty', 're_repair')
-    BEGIN
-        SET @discount = @labor_fee + @parts_total;
-    END
-
-    DECLARE @total DECIMAL(18,2) = @labor_fee + @parts_total - @discount;
-    IF @total < 0 SET @total = 0;
+    IF @ticket_id IS NULL
+        THROW 50050, N'Invoice not found.', 1;
+    IF @ticket_status NOT IN ('completed', 'delivered')
+        THROW 50052, N'Checkout only allowed when repair is completed.', 1;
 
     BEGIN TRY
         BEGIN TRAN;
-            INSERT INTO invoices (ticket_id, created_at, labor_fee, discount_amount, total_amount, payment_method, paid_at)
-            VALUES (@ticket_id, GETDATE(), @labor_fee, @discount, @total, @payment_method, GETDATE());
+            UPDATE invoices 
+            SET status = 'paid', 
+                payment_method = @payment_method, 
+                paid_at = ISNULL(paid_at, GETDATE()),
+                updated_at = GETDATE()
+            WHERE id = @invoice_id;
 
-            SET @invoice_id = SCOPE_IDENTITY();
-
-            INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price)
-            SELECT @invoice_id, part_id, quantity, unit_price
-            FROM ticket_items
-            WHERE ticket_id = @ticket_id;
-
+            -- Advance ticket to delivered
             UPDATE tickets 
-            SET status = 'paid', updated_at = GETDATE() 
-            WHERE id = @ticket_id;
-
+            SET status = 'delivered', updated_at = GETDATE() 
+            WHERE id = @ticket_id AND status <> 'delivered';
         COMMIT;
     END TRY
     BEGIN CATCH
@@ -831,6 +888,7 @@ BEGIN
     SELECT 
         i.id,
         i.ticket_id,
+        i.status,
         i.labor_fee,
         i.discount_amount,
         i.total_amount,
@@ -1095,42 +1153,51 @@ INSERT INTO tickets (
     initial_condition, accessories, received_at, fault_cause, repair_solution,
     estimated_cost, status, completed_at
 ) VALUES
-(1, 2, 7, 'repair', N'Device overheating, fan noisy, unexpected shutdown', N'Minor chassis scratches', N'Charger', '2026-08-03 11:37:00', N'Defective fan, thick dust accumulated', N'Replaced fan module and thermal paste', 530000, 'delivered', '2026-08-06 15:37:00'),
-(2, 3, 8, 'repair', N'Several keyboard keys unresponsive', N'Keyboard liquid spill', N'Charger, Sleeve', '2026-08-05 14:44:00', N'Short circuit on keyboard membrane', N'Replaced keyboard module', 650000, 'delivered', '2026-08-09 18:44:00'),
-(3, 4, 9, 'repair', N'Battery drains rapidly, lasts only 20 min', N'Normal condition, slight dent on corner', N'Charger', '2026-08-06 09:51:00', N'Battery aged over life cycle', N'Replaced laptop battery', 1100000, 'delivered', '2026-08-11 13:51:00'),
-(4, 5, 10, 'repair', N'System sluggish and freezes often', N'Very slow response', N'Charger', '2026-08-08 12:58:00', N'Insufficient RAM, full storage disk', N'Upgraded DDR4 8GB RAM', 750000, 'delivered', '2026-08-10 16:58:00'),
-(5, 6, 11, 'repair', N'Cracked screen with vertical lines', N'Screen crack at top right', N'Charger', '2026-08-10 16:05:00', N'Physical impact damaged LCD panel', N'Replaced LCD screen assembly', 2150000, 'delivered', '2026-08-13 20:05:00'),
-(6, 2, 7, 'repair', N'Battery drains fast, phone warms up', N'Good condition, small bezel scratch', N'None', '2026-08-11 11:12:00', N'Degraded battery health 72%', N'Replaced OEM phone battery', 600000, 'delivered', '2026-08-15 15:12:00'),
-(7, 3, 8, 'repair', N'Shattered glass, touch erratic', N'Shattered front glass, ghost touch', N'Phone case', '2026-08-13 14:19:00', N'Droppage shattered OLED display', N'Replaced OLED screen panel', 2850000, 'delivered', '2026-08-18 18:19:00'),
-(8, 4, 9, 'repair', N'Charging cable loose, not charging', N'Loose port, working fine otherwise', N'Charging Cable', '2026-08-15 08:36:00', N'Oxidized Type-C connector pins', N'Replaced Type-C charging port', 300000, 'delivered', '2026-08-17 12:36:00'),
-(9, 5, 10, 'repair', N'Slow charging, fast drain', N'Minor corner nick', N'Protective Case', '2026-08-17 11:43:00', N'Battery cycle limit exceeded', N'Replaced phone battery', 600000, 'delivered', '2026-08-20 15:43:00'),
+(1, 2, 7, 'repair', N'Device overheating, fan noisy, unexpected shutdown', N'Minor chassis scratches', N'Charger', '2026-08-03 11:37:00', N'Defective fan, thick dust accumulated', N'Replaced fan module and thermal paste', 250000, 'delivered', '2026-08-06 15:37:00'),
+(2, 3, 8, 'repair', N'Several keyboard keys unresponsive', N'Keyboard liquid spill', N'Charger, Sleeve', '2026-08-05 14:44:00', N'Short circuit on keyboard membrane', N'Replaced keyboard module', 200000, 'delivered', '2026-08-09 18:44:00'),
+(3, 4, 9, 'repair', N'Battery drains rapidly, lasts only 20 min', N'Normal condition, slight dent on corner', N'Charger', '2026-08-06 09:51:00', N'Battery aged over life cycle', N'Replaced laptop battery', 150000, 'delivered', '2026-08-11 13:51:00'),
+(4, 5, 10, 'repair', N'System sluggish and freezes often', N'Very slow response', N'Charger', '2026-08-08 12:58:00', N'Insufficient RAM, full storage disk', N'Upgraded DDR4 8GB RAM', 100000, 'delivered', '2026-08-10 16:58:00'),
+(5, 6, 11, 'repair', N'Cracked screen with vertical lines', N'Screen crack at top right', N'Charger', '2026-08-10 16:05:00', N'Physical impact damaged LCD panel', N'Replaced LCD screen assembly', 300000, 'delivered', '2026-08-13 20:05:00'),
+(6, 2, 7, 'repair', N'Battery drains fast, phone warms up', N'Good condition, small bezel scratch', N'None', '2026-08-11 11:12:00', N'Degraded battery health 72%', N'Replaced OEM phone battery', 150000, 'delivered', '2026-08-15 15:12:00'),
+(7, 3, 8, 'repair', N'Shattered glass, touch erratic', N'Shattered front glass, ghost touch', N'Phone case', '2026-08-13 14:19:00', N'Droppage shattered OLED display', N'Replaced OLED screen panel', 350000, 'delivered', '2026-08-18 18:19:00'),
+(8, 4, 9, 'repair', N'Charging cable loose, not charging', N'Loose port, working fine otherwise', N'Charging Cable', '2026-08-15 08:36:00', N'Oxidized Type-C connector pins', N'Replaced Type-C charging port', 120000, 'delivered', '2026-08-17 12:36:00'),
+(9, 5, 10, 'repair', N'Slow charging, fast drain', N'Minor corner nick', N'Protective Case', '2026-08-17 11:43:00', N'Battery cycle limit exceeded', N'Replaced phone battery', 150000, 'delivered', '2026-08-20 15:43:00'),
 (10, 6, 7, 'repair', N'Dropped in water, will not turn on', N'Damp internals, no power', N'None', '2026-08-19 14:50:00', NULL, NULL, 0, 'inspecting', NULL),
-(11, 2, 8, 'repair', N'Cannot recharge battery', N'Charging connector wobbly', N'Case', '2026-08-22 09:57:00', N'Dust buildup and worn port', N'Replaced charging port', 330000, 'completed', '2026-08-27 13:57:00'),
-(12, 3, 9, 'repair', N'Printed pages blurry with horizontal stripes', N'Ink full, feed mechanism works', N'Power cord, USB cable', '2026-08-25 13:04:00', N'Clogged printer nozzle', N'Replaced printhead nozzle', 980000, 'completed', '2026-08-27 17:04:00'),
-(13, 4, 10, 'repair', N'Frequent paper jams', N'Uneven paper feeding', N'Power cord', '2026-08-28 16:11:00', N'Worn rubber pickup roller', N'Replaced paper pickup roller', 340000, 'completed', '2026-08-31 20:11:00'),
-(14, 5, 11, 'repair', N'Power LED on, sound works, no picture', N'Black screen, power on', N'Remote Control', '2026-08-30 11:18:00', N'Power surge fried mainboard', N'Replaced TV 4K mainboard', 1800000, 'completed', '2026-09-03 15:18:00'),
-(15, 6, 7, 'repair', N'Dim display, screen flickering', N'Dim image, poor contrast', N'Remote Control', '2026-09-03 13:35:00', N'Burnt LED backlight strips', N'Replaced LED backlight strip kit', 1400000, 'repairing', NULL),
-(16, 2, 8, 'repair', N'Monitor will not power on', N'Power indicator unlit', N'Power cable, HDMI', '2026-09-06 08:42:00', N'Blown capacitors on power board', N'Replaced monitor power supply board', 800000, 'repairing', NULL),
-(17, 3, 9, 'repair', N'Outdoor unit runs but no cool air', N'Air blower works, no cold air', N'None', '2026-09-10 11:49:00', N'Low refrigerant gas and weak capacitor', N'Recharged R32 gas and replaced capacitor', 720000, 'waiting_for_parts', NULL),
-(18, 4, 10, 'repair', N'Indoor AC blinking error code H11', N'Unit halts on error code', N'Remote', '2026-09-24 14:56:00', N'Faulty inverter PCB', N'Replaced inverter control PCB', 1850000, 'waiting_for_parts', NULL),
-(19, 5, 11, 'repair', N'Washing machine not draining water', N'Water retained inside drum', N'None', '2026-09-26 10:03:00', N'Burnt drain pump motor', N'Replaced drain pump assembly', 630000, 'repairing', NULL),
+(11, 2, 8, 'repair', N'Cannot recharge battery', N'Charging connector wobbly', N'Case', '2026-08-22 09:57:00', N'Dust buildup and worn port', N'Replaced charging port', 150000, 'completed', '2026-08-27 13:57:00'),
+(12, 3, 9, 'repair', N'Printed pages blurry with horizontal stripes', N'Ink full, feed mechanism works', N'Power cord, USB cable', '2026-08-25 13:04:00', N'Clogged printer nozzle', N'Replaced printhead nozzle', 200000, 'completed', '2026-08-27 17:04:00'),
+(13, 4, 10, 'repair', N'Frequent paper jams', N'Uneven paper feeding', N'Power cord', '2026-08-28 16:11:00', N'Worn rubber pickup roller', N'Replaced paper pickup roller', 100000, 'completed', '2026-08-31 20:11:00'),
+(14, 5, 11, 'repair', N'Power LED on, sound works, no picture', N'Black screen, power on', N'Remote Control', '2026-08-30 11:18:00', N'Power surge fried mainboard', N'Replaced TV 4K mainboard', 400000, 'completed', '2026-09-03 15:18:00'),
+(15, 6, 7, 'repair', N'Dim display, screen flickering', N'Dim image, poor contrast', N'Remote Control', '2026-09-03 13:35:00', N'Burnt LED backlight strips', N'Replaced LED backlight strip kit', 450000, 'repairing', NULL),
+(16, 2, 8, 'repair', N'Monitor will not power on', N'Power indicator unlit', N'Power cable, HDMI', '2026-09-06 08:42:00', N'Blown capacitors on power board', N'Replaced monitor power supply board', 180000, 'repairing', NULL),
+(17, 3, 9, 'repair', N'Outdoor unit runs but no cool air', N'Air blower works, no cold air', N'None', '2026-09-10 11:49:00', N'Low refrigerant gas and weak capacitor', N'Recharged R32 gas and replaced capacitor', 350000, 'waiting_for_parts', NULL),
+(18, 4, 10, 'repair', N'Indoor AC blinking error code H11', N'Unit halts on error code', N'Remote', '2026-09-24 14:56:00', N'Faulty inverter PCB', N'Replaced inverter control PCB', 500000, 'waiting_for_parts', NULL),
+(19, 5, 11, 'repair', N'Washing machine not draining water', N'Water retained inside drum', N'None', '2026-09-26 10:03:00', N'Burnt drain pump motor', N'Replaced drain pump assembly', 250000, 'repairing', NULL),
 (20, 6, 7, 'repair', N'Fridge not cooling, frost buildup', N'Continuous humming sound', N'None', '2026-09-29 09:15:00', NULL, NULL, 0, 'received', NULL);
 GO
 
--- 6.6. Seed Invoices (Paid invoices for completed & delivered tickets)
-INSERT INTO invoices (ticket_id, created_at, labor_fee, discount_amount, total_amount, payment_method, paid_at) VALUES
-(1, '2026-08-06 15:37:00', 250000, 0, 530000, 'cash', '2026-08-06 15:37:00'),
-(2, '2026-08-09 18:44:00', 200000, 0, 650000, 'bank_transfer', '2026-08-09 18:44:00'),
-(3, '2026-08-11 13:51:00', 150000, 0, 1100000, 'credit_card', '2026-08-11 13:51:00'),
-(4, '2026-08-10 16:58:00', 100000, 0, 750000, 'cash', '2026-08-10 16:58:00'),
-(5, '2026-08-13 20:05:00', 300000, 0, 2150000, 'bank_transfer', '2026-08-13 20:05:00'),
-(6, '2026-08-15 15:12:00', 150000, 0, 600000, 'cash', '2026-08-15 15:12:00'),
-(7, '2026-08-18 18:19:00', 350000, 0, 2850000, 'bank_transfer', '2026-08-18 18:19:00'),
-(8, '2026-08-17 12:36:00', 120000, 0, 300000, 'cash', '2026-08-17 12:36:00'),
-(9, '2026-08-20 15:43:00', 150000, 0, 600000, 'bank_transfer', '2026-08-20 15:43:00');
+-- 6.6. Seed Invoices (18 rows; tickets 10 and 20 have no invoice yet, it is created lazily when the first part is added)
+INSERT INTO invoices (ticket_id, created_at, status, labor_fee, discount_amount, total_amount, payment_method, paid_at) VALUES
+(1, '2026-08-06 15:37:00', 'paid', 250000, 0, 530000, 'cash', '2026-08-06 15:37:00'),
+(2, '2026-08-09 18:44:00', 'paid', 200000, 0, 650000, 'bank_transfer', '2026-08-09 18:44:00'),
+(3, '2026-08-11 13:51:00', 'paid', 150000, 0, 1100000, 'credit_card', '2026-08-11 13:51:00'),
+(4, '2026-08-10 16:58:00', 'paid', 100000, 0, 750000, 'cash', '2026-08-10 16:58:00'),
+(5, '2026-08-13 20:05:00', 'paid', 300000, 0, 2150000, 'bank_transfer', '2026-08-13 20:05:00'),
+(6, '2026-08-15 15:12:00', 'paid', 150000, 0, 600000, 'cash', '2026-08-15 15:12:00'),
+(7, '2026-08-18 18:19:00', 'paid', 350000, 0, 2850000, 'bank_transfer', '2026-08-18 18:19:00'),
+(8, '2026-08-17 12:36:00', 'paid', 120000, 0, 300000, 'cash', '2026-08-17 12:36:00'),
+(9, '2026-08-20 15:43:00', 'paid', 150000, 0, 600000, 'bank_transfer', '2026-08-20 15:43:00'),
+(11, '2026-08-27 13:57:00', 'paid', 150000, 0, 330000, NULL, '2026-08-27 13:57:00'),
+(12, '2026-08-27 17:04:00', 'paid', 200000, 0, 980000, NULL, '2026-08-27 17:04:00'),
+(13, '2026-08-31 20:11:00', 'paid', 100000, 0, 340000, NULL, '2026-08-31 20:11:00'),
+(14, '2026-09-03 15:18:00', 'paid', 400000, 0, 1800000, NULL, '2026-09-03 15:18:00'),
+(15, '2026-09-04 13:35:00', 'unpaid', 450000, 0, 1400000, NULL, NULL),
+(16, '2026-09-07 08:42:00', 'unpaid', 180000, 0, 800000, NULL, NULL),
+(17, '2026-09-11 11:49:00', 'unpaid', 350000, 0, 720000, NULL, NULL),
+(18, '2026-09-25 14:56:00', 'unpaid', 500000, 0, 1850000, NULL, NULL),
+(19, '2026-09-27 10:03:00', 'unpaid', 250000, 0, 630000, NULL, NULL);
 GO
 
--- 6.7. Seed Invoice Items (Parts snapshot for paid invoices)
+-- 6.7. Seed Invoice Items (19 rows). Invoice ids are IDENTITY: tickets 11-19 map to invoice ids 10-18.
 INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price) VALUES
 (1, 5, 1, 280000),
 (2, 4, 1, 450000),
@@ -1140,30 +1207,17 @@ INSERT INTO invoice_items (invoice_id, part_id, quantity, unit_price) VALUES
 (6, 8, 1, 450000),
 (7, 7, 1, 2500000),
 (8, 9, 1, 180000),
-(9, 8, 1, 450000);
-GO
-
--- 6.7.5. Seed Ticket Items (Parts attached to repair tickets)
-INSERT INTO ticket_items (ticket_id, part_id, quantity, unit_price) VALUES
-(1, 5, 1, 280000),
-(2, 4, 1, 450000),
-(3, 3, 1, 950000),
-(4, 1, 1, 650000),
-(5, 6, 1, 1850000),
-(6, 8, 1, 450000),
-(7, 7, 1, 2500000),
-(8, 9, 1, 180000),
 (9, 8, 1, 450000),
-(11, 9, 1, 180000),
-(12, 12, 1, 780000),
-(13, 14, 1, 240000),
-(14, 10, 1, 1400000),
-(15, 11, 1, 950000),
-(16, 15, 1, 620000),
-(17, 17, 1, 250000),
-(17, 16, 1, 120000),
-(18, 18, 1, 1350000),
-(19, 19, 1, 380000);
+(10, 9, 1, 180000),
+(11, 12, 1, 780000),
+(12, 14, 1, 240000),
+(13, 10, 1, 1400000),
+(14, 11, 1, 950000),
+(15, 15, 1, 620000),
+(16, 17, 1, 250000),
+(16, 16, 1, 120000),
+(17, 18, 1, 1350000),
+(18, 19, 1, 380000);
 GO
 
 -- 6.8. Seed Initial Ticket Status History (Audit Trail)

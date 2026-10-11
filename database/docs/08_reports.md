@@ -47,9 +47,10 @@ WHERE status IN ('received', 'inspecting', 'waiting_for_parts', 'repairing');
 SELECT COUNT(*) AS completedTickets FROM dbo.tickets WHERE status = 'completed';
 SELECT COUNT(*) AS deliveredTickets FROM dbo.tickets WHERE status = 'delivered';
 
--- 4. Tổng doanh thu thực tế từ hóa đơn thanh toán
+-- 4. Tổng doanh thu thực tế từ hóa đơn thanh toán (chỉ tính hóa đơn đã thanh toán)
 SELECT ISNULL(SUM(total_amount), 0) AS totalRevenue 
-FROM dbo.invoices;
+FROM dbo.invoices
+WHERE status = 'paid';
 
 -- 5. Số lượng linh kiện chạm ngưỡng cảnh báo sắp hết hàng (<= 5 đơn vị)
 SELECT COUNT(*) AS lowStockPartsCount 
@@ -74,12 +75,13 @@ WHERE received_at >= DATEADD(month, -5, DATEADD(day, 1 - DAY(GETDATE()), CAST(GE
 GROUP BY FORMAT(received_at, 'yyyy-MM')
 ORDER BY month_label ASC;
 
--- B. Thống kê xu hướng doanh thu phát sinh (6 tháng gần nhất)
+-- B. Thống kê xu hướng doanh thu phát sinh (6 tháng gần nhất - chỉ tính hóa đơn đã thanh toán)
 SELECT 
     FORMAT(created_at, 'yyyy-MM') AS month_label,
     SUM(total_amount) AS total_revenue
 FROM dbo.invoices
-WHERE created_at >= DATEADD(month, -5, DATEADD(day, 1 - DAY(GETDATE()), CAST(GETDATE() AS DATE)))
+WHERE status = 'paid'
+  AND created_at >= DATEADD(month, -5, DATEADD(day, 1 - DAY(GETDATE()), CAST(GETDATE() AS DATE)))
 GROUP BY FORMAT(created_at, 'yyyy-MM')
 ORDER BY month_label ASC;
 ```
@@ -116,6 +118,7 @@ SELECT TOP 5
 FROM dbo.invoice_items ii
 INNER JOIN dbo.parts p ON ii.part_id = p.id
 INNER JOIN dbo.invoices inv ON ii.invoice_id = inv.id
+WHERE inv.status = 'paid'
 GROUP BY p.id, p.part_name, p.unit
 ORDER BY totalQuantity DESC, totalAmount DESC;
 ```
@@ -124,7 +127,7 @@ ORDER BY totalQuantity DESC, totalAmount DESC;
 
 ### 2.5. Report 5: Báo Cáo Năng Suất Kỹ Thuật Viên (Top Active Technicians)
 - **Mục đích**: Đánh giá năng suất và khối lượng công việc của từng kỹ thuật viên trong xưởng sửa chữa. Báo cáo giúp điều phối viên phân bổ ca trực cân bằng và làm căn cứ đánh giá KPI cuối tháng.
-- **Kỹ thuật SQL**: Sử dụng kỹ thuật gom nhóm có điều kiện **`Conditional Aggregation (SUM CASE WHEN)`** để tính số ca đã hoàn thành (`completed`, `delivered`, `paid`) trên tổng số ca được bàn giao.
+- **Kỹ thuật SQL**: Sử dụng kỹ thuật gom nhóm có điều kiện **`Conditional Aggregation (SUM CASE WHEN)`** để tính số ca đã hoàn thành (`completed`, `delivered`) trên tổng số ca được bàn giao.
 
 #### Đoạn mã T-SQL (SQL Snippet):
 ```sql
@@ -132,7 +135,7 @@ SELECT TOP 5
     e.id AS employee_id,
     e.full_name AS technician_name,
     COUNT(t.id) AS total_assigned,
-    SUM(CASE WHEN t.status IN ('completed', 'delivered', 'paid') THEN 1 ELSE 0 END) AS completed_count
+    SUM(CASE WHEN t.status IN ('completed', 'delivered') THEN 1 ELSE 0 END) AS completed_count
 FROM dbo.employees e
 INNER JOIN dbo.tickets t ON e.id = t.technician_id
 WHERE e.role = 'technician' 

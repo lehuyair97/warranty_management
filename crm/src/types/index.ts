@@ -16,7 +16,6 @@ export enum TicketStatus {
   WAITING_FOR_PARTS = 'waiting_for_parts',
   REPAIRING = 'repairing',
   COMPLETED = 'completed',
-  PAID = 'paid',
   DELIVERED = 'delivered',
   CANCELLED = 'cancelled',
 }
@@ -33,6 +32,10 @@ export enum TicketType {
 /**
  * Invoice payment statuses.
  */
+export enum InvoiceStatus {
+  UNPAID = 'unpaid',
+  PAID = 'paid',
+}
 
 /**
  * Supported payment methods.
@@ -125,7 +128,7 @@ export interface InvoiceItem {
 export interface Invoice {
   id: number;
   ticketId: number;
-  
+  status: InvoiceStatus;
   laborFee: number;
   discountAmount: number;
   totalAmount: number;
@@ -162,7 +165,6 @@ export interface Ticket {
   technician?: UserProfile | null;
   invoices?: Invoice[];
   statusHistory?: TicketStatusHistory[];
-  items?: { id?: number; partId: number; quantity: number; unitPrice: number; part?: Part }[];
 }
 
 /**
@@ -208,7 +210,7 @@ export interface PublicTicketTracking {
   } | null;
   invoices: {
     id: number;
-    
+    status: InvoiceStatus;
     laborFee: number;
     discountAmount: number;
     totalAmount: number;
