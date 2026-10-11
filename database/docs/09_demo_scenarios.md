@@ -54,8 +54,8 @@ flowchart TD
   - Đồng thời, CSDL phải ghi nhận ngay một dòng nhật ký (audit log) để đảm bảo tính minh bạch về thời gian và người tiếp nhận.
 - **Thao tác người dùng (User Action)**:
   1. Lễ tân nhập SĐT khách hàng: `0901234501` (hệ thống tự fill tên: *Nguyen Van An*).
-  2. Nhập thiết bị: *Dell XPS 15 9520*, Serial: *DELL-XPS-9901*, chọn ngày bảo hành là ngày mai hoặc tương lai.
-  3. Chọn loại yêu cầu là `repair` (Sửa chữa thông thường), mô tả lỗi: *"Máy không lên nguồn"*.
+  2. Chọn thiết bị: *Asus VivoBook 14 X1404* (Device #2 - còn bảo hành chính hãng đến 2027).
+  3. Chọn loại yêu cầu ban đầu là `repair` (Sửa chữa thông thường), mô tả lỗi: *"Máy không lên nguồn"*.
   4. Bấm nút **[Xác nhận tiếp nhận & In biên nhận]**.
 
 #### ⚙️ Các đối tượng CSDL được kích hoạt đồng thời:
@@ -63,15 +63,15 @@ flowchart TD
 2. **Scalar UDF**: `dbo.fn_is_device_under_warranty(@device_id, GETDATE())` được gọi **ngầm bên trong procedure**.
    - *Logic CSDL*: CSDL tự động phát hiện thiết bị vẫn còn hạn bảo hành $\rightarrow$ **Tự động chuyển `ticket_type` từ `repair` sang `warranty`** mà không cần lễ tân phải can thiệp thủ công.
 3. **DML Trigger**: `dbo.trg_tickets_audit_history` tự động kích hoạt trên sự kiện `AFTER INSERT` của bảng `tickets`.
-   - *Logic CSDL*: Tự động chèn một dòng nhật ký vào bảng `ticket_status_history` ghi nhận: `status = 'received'`, `changed_by = receptionist_id`, mốc thời gian `GETDATE()`.
+   - *Logic CSDL*: Tự động chèn một dòng nhật ký vào bảng `ticket_status_history` ghi nhận: `status = 'received'`, `technician_id = NULL`, mốc thời gian `GETDATE()`.
 
 #### 💻 Snippet Code tương tác CSDL & Câu lệnh kiểm chứng:
 ```sql
 -- Procedure được gọi từ Backend:
 DECLARE @out_id INT;
 EXEC dbo.sp_receive_device
-    @device_id = 1,
-    @receptionist_id = 1,
+    @device_id = 2,
+    @receptionist_id = 2,
     @issue_description = N'Máy không lên nguồn',
     @initial_condition = N'Máy trầy nhẹ góc phải',
     @accessories = N'Sạc zin theo máy',
@@ -129,9 +129,9 @@ SELECT * FROM dbo.fn_get_device_repair_history(1);
 ```sql
 -- Procedure Backend thực thi:
 EXEC dbo.sp_process_ticket
-    @ticket_id = 1,
+    @ticket_id = 10,
     @status = 'repairing',
-    @technician_id = 3,
+    @technician_id = 7,
     @fault_cause = N'Hỏng tụ nguồn bo mạch chính',
     @repair_solution = N'Thay thế cụm IC nguồn',
     @estimated_cost = 450000;
@@ -184,8 +184,8 @@ SELECT id, part_name, stock_quantity FROM parts WHERE id = 2;
 
 #### 💻 Snippet Code kiểm chứng trực tiếp:
 ```sql
--- Cố tình vi phạm State Machine:
-UPDATE tickets SET status = 'delivered' WHERE id = 1 AND status = 'received';
+-- Cố tình vi phạm State Machine (nhảy cóc từ received sang delivered trên phiếu #20):
+UPDATE tickets SET status = 'delivered' WHERE id = 20;
 
 -- KẾT QUẢ TỪ SQL SERVER:
 -- Msg 50004, Level 16, State 1, Trigger trg_tickets_workflow_guard
@@ -398,7 +398,7 @@ USE warranty_management;
 | **Action 3** | KTV chẩn đoán & chuyển trạng thái (`/technician`) | `sp_process_ticket` | `trg_tickets_workflow_guard`<br/>`trg_tickets_audit_history` | — | — |
 | **Action 4** | KTV xuất kho linh kiện (`/technician`) | `sp_add_invoice_part` | `trg_invoice_items_stock`<br/>`trg_invoices_total_amount` | — | — |
 | **Action 5** | Test chặn gian lận State Machine | `sp_process_ticket` | `trg_tickets_workflow_guard` *(CHẶN)* | — | — |
-| **Action 6** | Thu ngân thanh toán hóa đơn (`/cashier`) | `sp_checkout_invoice` | `trg_tickets_audit_history` | — | `fn_calculate_parts_total` |
+| **Action 6** | Thu ngân thanh toán hóa đơn (`/cashier`) | `sp_checkout_invoice` | `trg_tickets_audit_history` | — | — |
 | **Action 7** | Test chặn gian lận hóa đơn đã thanh toán | Lệnh UPDATE / DELETE | `trg_invoices_freeze_paid_amounts`<br/>`trg_invoice_items_freeze_paid` *(CHẶN)* | — | — |
 | **Action 8** | Xem cảnh báo trễ hạn SLA (`/dashboard`) | `sp_alert_delayed_tickets` | — | `cur_delayed_tickets` | — |
 | **Action 9** | Đối soát hóa đơn tự động (`/dashboard`) | `sp_audit_invoices` | — | `cur_invoices` | `fn_calculate_parts_total` |
@@ -412,4 +412,4 @@ USE warranty_management;
 > Khi hội đồng đặt câu hỏi: *"Các ràng buộc và trigger này có thực sự chạy không hay chỉ code giao diện?"*  
 > $\rightarrow$ Người trình bày mở song song 2 cửa sổ:  
 > - **Cửa sổ 1**: Web Next.js bấm thao tác (ví dụ Action 5 cố tình nhảy cóc trạng thái hoặc Action 7 cố tình sửa tiền hóa đơn đã thanh toán).  
-> - **Cửa sổ 2**: DBeaver / terminal hiển thị mã lỗi đỏ do SQL Server trả về (`50004` hoặc `50050`), chứng minh **CSDL là bức tường bảo vệ tầng chót (Zero-Trust)** không thể bị qua mặt!
+> - **Cửa sổ 2**: DBeaver / terminal hiển thị mã lỗi đỏ do SQL Server trả về (`50004` hoặc `50036`), chứng minh **CSDL là bức tường bảo vệ tầng chót (Zero-Trust)** không thể bị qua mặt!

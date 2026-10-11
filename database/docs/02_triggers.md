@@ -6,23 +6,32 @@
 
 ---
 
-## 1. Bảng Tổng Hợp Danh Mục Triggers (7 Triggers)
+## 1. Bảng Tổng Hợp Danh Mục Triggers (5 Trọng Tâm + 2 Bổ Trợ)
 
-| STT | Tên Trigger | Bảng Giám Sát | Sự Kiện Kích Hoạt | Mục Đích Nghiệp Vụ | Mã Lỗi THROW |
-| :---: | :--- | :--- | :--- | :--- | :--- |
-| 1 | `trg_invoice_items_stock` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | Tự động trừ/hoàn tồn kho trong bảng `parts`; cấm âm kho | `50001` |
-| 2 | `trg_invoices_total_amount` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | Tự động tính toán lại `total_amount` của hóa đơn khi linh kiện thay đổi | - |
-| 3 | `trg_invoices_labor_update` | `invoices` | `AFTER INSERT, UPDATE` | Tự động cập nhật lại `total_amount` khi tiền công hoặc giảm giá thay đổi | - |
-| 4 | `trg_tickets_workflow_guard` | `tickets` | `AFTER INSERT, UPDATE` | Ràng buộc KTV phụ trách; kiểm soát tính hợp lệ của luồng trạng thái State Machine | `50003`, `50004` |
-| 5 | `trg_tickets_audit_history` | `tickets` | `AFTER INSERT, UPDATE` | Tự động ghi vết mọi chuyển đổi trạng thái vào `ticket_status_history` | - |
-| 6 | `trg_invoice_items_freeze_paid` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | Khóa bất biến: cấm thêm, sửa hoặc xóa linh kiện trên hóa đơn đã thanh toán (`status = 'paid'`) | `50035` |
-| 7 | `trg_invoices_freeze_paid_amounts` | `invoices` | `AFTER UPDATE` | Khóa bất biến tài chính: cấm thay đổi tiền công, giảm giá, tổng tiền của hóa đơn đã thanh toán | `50036` |
+### 🌟 Nhóm 1: TOP 5 Trigger Trọng Tâm Thuyết Trình (Core Highlights)
+| STT | Tên Trigger | Bảng Giám Sát | Sự Kiện Kích Hoạt | Trọng Tâm Nghiệp Vụ | Mã Lỗi |
+| :---: | :--- | :--- | :--- | :--- | :---: |
+| 1 | `trg_invoice_items_stock` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | **Quản lý kho**: Trừ/hoàn tồn kho thời gian thực, cấm âm kho | `50001` |
+| 2 | `trg_invoices_total_amount` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | **Tài chính**: Tự động tính tổng tiền, chiết khấu 100% nếu là bảo hành | - |
+| 3 | `trg_tickets_workflow_guard` | `tickets` | `AFTER INSERT, UPDATE` | **Máy trạng thái**: Chặn nhảy cóc, cấm sửa phiếu đã trả, ép có KTV | `50003`, `50004` |
+| 4 | `trg_tickets_audit_history` | `tickets` | `AFTER INSERT, UPDATE` | **Kiểm toán**: Tự động chụp log lịch sử trạng thái & KTV thao tác | - |
+| 5 | `trg_invoices_freeze_paid_amounts` | `invoices` | `AFTER UPDATE` | **Khóa tài chính**: Cấm sửa tiền/hoàn trạng thái hóa đơn đã thanh toán | `50036` |
+
+### 🛡️ Nhóm 2: 2 Trigger Bổ Trợ Toàn Vẹn Mở Rộng (Optional / Supplementary)
+| STT | Tên Trigger | Bảng Giám Sát | Sự Kiện Kích Hoạt | Mục Đích Nghiệp Vụ Bổ Trợ | Mã Lỗi |
+| :---: | :--- | :--- | :--- | :--- | :---: |
+| 6 | `trg_invoices_labor_update` | `invoices` | `AFTER INSERT, UPDATE` | Tự động đồng bộ lại tổng tiền khi sửa tiền công hoặc chiết khấu trên hóa đơn | - |
+| 7 | `trg_invoice_items_freeze_paid` | `invoice_items` | `AFTER INSERT, UPDATE, DELETE` | Khóa bất biến: cấm thêm/sửa/xóa dòng linh kiện trên hóa đơn đã thanh toán | `50035` |
 
 ---
 
 ## 2. Chi Tiết Từng Trigger Nghiệp Vụ
 
-### 2.1. `trg_invoice_items_stock`: Tự động trừ / hoàn kho linh kiện
+### 2.1. TOP 5 Trigger Trọng Tâm Thuyết Trình (Core Presentation Highlights)
+
+> 🎯 **Khuyến nghị bảo vệ**: Tập trung thuyết trình và demo 5 trigger trọng tâm này để đại diện trọn vẹn cho 5 trụ cột bảo mật & nghiệp vụ của hệ thống: **Kho hàng $\rightarrow$ Tài chính $\rightarrow$ State Machine $\rightarrow$ Nhật ký Audit $\rightarrow$ Khóa bất biến tài chính**.
+
+#### 2.1.1. `trg_invoice_items_stock`: Tự động trừ / hoàn kho linh kiện
 - **Bảng giám sát**: `invoice_items`
 - **Sự kiện**: `AFTER INSERT, UPDATE, DELETE`
 - **Nguyên lý hoạt động**:
@@ -76,7 +85,7 @@ GO
 
 ---
 
-### 2.2. `trg_invoices_total_amount`: Tự động tính toán tổng tiền hóa đơn theo linh kiện
+#### 2.1.2. `trg_invoices_total_amount`: Tự động tính toán tổng tiền hóa đơn theo linh kiện
 - **Bảng giám sát**: `invoice_items`
 - **Sự kiện**: `AFTER INSERT, UPDATE, DELETE`
 - **Nguyên lý hoạt động**:
@@ -116,48 +125,7 @@ END;
 GO
 ```
 
----
-
-### 2.3. `trg_invoices_labor_update`: Cập nhật tổng tiền khi đổi tiền công / chiết khấu
-- **Bảng giám sát**: `invoices`
-- **Sự kiện**: `AFTER INSERT, UPDATE`
-- **Nguyên lý hoạt động**:
-  1. Khi người dùng cập nhật trường tiền công `labor_fee` hoặc trường chiết khấu `discount_amount` trên hóa đơn, trigger tự động tính toán lại `total_amount`.
-  2. Nếu phiếu thuộc diện bảo hành (`warranty`, `re_repair`), tự động đồng bộ `discount_amount = labor_fee + parts_cost` và giữ `total_amount = 0`.
-  3. Đảm bảo tổng tiền `total_amount` luôn luôn nhất quán với công thức kế toán `total_amount = labor_fee + parts_total - discount_amount` trên các hóa đơn `unpaid`.
-
-```sql
-CREATE OR ALTER TRIGGER trg_invoices_labor_update
-ON invoices AFTER INSERT, UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-    IF NOT EXISTS (SELECT 1 FROM deleted) OR UPDATE(labor_fee) OR UPDATE(discount_amount)
-    BEGIN
-        UPDATE inv
-        SET inv.discount_amount = CASE 
-                WHEN t.ticket_type IN ('warranty', 're_repair') 
-                THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id)
-                ELSE inv.discount_amount 
-            END,
-            inv.total_amount = CASE 
-                WHEN t.ticket_type IN ('warranty', 're_repair') THEN 0
-                WHEN (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END)) < 0 THEN 0
-                ELSE (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END))
-            END,
-            inv.updated_at = GETDATE()
-        FROM invoices inv
-        JOIN tickets t ON t.id = inv.ticket_id
-        JOIN inserted i ON i.id = inv.id
-        WHERE inv.status = 'unpaid';
-    END
-END;
-GO
-```
-
----
-
-### 2.4. `trg_tickets_workflow_guard`: Người gác cổng State Machine của phiếu
+#### 2.1.3. `trg_tickets_workflow_guard`: Người gác cổng State Machine của phiếu
 - **Bảng giám sát**: `tickets`
 - **Sự kiện**: `AFTER INSERT, UPDATE`
 - **Nguyên lý hoạt động**:
@@ -216,7 +184,7 @@ GO
 
 ---
 
-### 2.5. `trg_tickets_audit_history`: Tự động ghi vết nhật ký trạng thái
+#### 2.1.4. `trg_tickets_audit_history`: Tự động ghi vết nhật ký trạng thái
 - **Bảng giám sát**: `tickets`
 - **Sự kiện**: `AFTER INSERT, UPDATE`
 - **Nguyên lý hoạt động**:
@@ -253,36 +221,7 @@ GO
 
 ---
 
-### 2.6. `trg_invoice_items_freeze_paid`: Khóa bất biến linh kiện hóa đơn đã thanh toán
-- **Bảng giám sát**: `invoice_items`
-- **Sự kiện**: `AFTER INSERT, UPDATE, DELETE`
-- **Mục đích**: Bảo đảm tính toàn vẹn kế toán. Một khi hóa đơn đã được thanh toán (`inv.status = 'paid'`), cấm tuyệt đối việc thêm linh kiện, sửa đổi số lượng hoặc xóa linh kiện khỏi hóa đơn.
-- **Xử lý**: Nếu phát hiện thao tác `INSERT`, `UPDATE` hoặc `DELETE` tác động vào các linh kiện thuộc hóa đơn có `status = 'paid'`, trigger lập tức `ROLLBACK TRANSACTION` và ném mã lỗi `50035`.
-
-```sql
-CREATE OR ALTER TRIGGER trg_invoice_items_freeze_paid
-ON invoice_items AFTER INSERT, UPDATE, DELETE
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    IF EXISTS (
-        SELECT 1 
-        FROM (SELECT invoice_id FROM inserted UNION SELECT invoice_id FROM deleted) x
-        JOIN invoices inv ON inv.id = x.invoice_id
-        WHERE inv.status = 'paid'
-    )
-    BEGIN
-        ROLLBACK TRANSACTION;
-        THROW 50035, N'Cannot add, modify, or remove spare parts on an already paid invoice.', 1;
-    END
-END;
-GO
-```
-
----
-
-### 2.7. `trg_invoices_freeze_paid_amounts`: Khóa bất biến số liệu tài chính hóa đơn đã thanh toán
+#### 2.1.5. `trg_invoices_freeze_paid_amounts`: Khóa bất biến số liệu tài chính hóa đơn đã thanh toán
 - **Bảng giám sát**: `invoices`
 - **Sự kiện**: `AFTER UPDATE`
 - **Mục đích**: Ngăn ngừa gian lận tài chính. Tuyệt đối cấm chỉnh sửa các trường tiền tệ (`labor_fee`, `discount_amount`, `total_amount`) hoặc hoàn ngược trạng thái (`status <> 'paid'`) sau khi hóa đơn đã thanh toán.
@@ -309,6 +248,78 @@ BEGIN
     BEGIN
         ROLLBACK TRANSACTION;
         THROW 50036, N'Financial data of a paid invoice is immutable and cannot be altered or reversed.', 1;
+    END
+END;
+GO
+```
+
+---
+
+### 2.2. Các Trigger Bổ Trợ Toàn Vẹn Mở Rộng (Optional / Supplementary Safeguards)
+
+> 💡 **Khuyến nghị sử dụng khi bảo vệ**: Đây là 2 trigger lớp bảo vệ thứ hai (Secondary Guards). Nếu thời gian thuyết trình có hạn, nhóm có thể lướt qua hoặc chỉ trình bày khi thầy cô trong hội đồng hỏi sâu về tính toàn vẹn đa tầng.
+
+#### 2.2.1. `trg_invoices_labor_update`: Đồng bộ tổng tiền khi đổi tiền công / chiết khấu
+- **Bảng giám sát**: `invoices`
+- **Sự kiện**: `AFTER INSERT, UPDATE`
+- **Nguyên lý hoạt động**:
+  1. Khi người dùng cập nhật trường tiền công `labor_fee` hoặc trường chiết khấu `discount_amount` trên hóa đơn, trigger tự động tính toán lại `total_amount`.
+  2. Nếu phiếu thuộc diện bảo hành (`warranty`, `re_repair`), tự động đồng bộ `discount_amount = labor_fee + parts_cost` và giữ `total_amount = 0`.
+  3. Đảm bảo tổng tiền `total_amount` luôn luôn nhất quán với công thức kế toán `total_amount = labor_fee + parts_total - discount_amount` trên các hóa đơn `unpaid`.
+
+```sql
+CREATE OR ALTER TRIGGER trg_invoices_labor_update
+ON invoices AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM deleted) OR UPDATE(labor_fee) OR UPDATE(discount_amount)
+    BEGIN
+        UPDATE inv
+        SET inv.discount_amount = CASE 
+                WHEN t.ticket_type IN ('warranty', 're_repair') 
+                THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id)
+                ELSE inv.discount_amount 
+            END,
+            inv.total_amount = CASE 
+                WHEN t.ticket_type IN ('warranty', 're_repair') THEN 0
+                WHEN (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END)) < 0 THEN 0
+                ELSE (inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) - (CASE WHEN t.ticket_type IN ('warranty', 're_repair') THEN inv.labor_fee + dbo.fn_calculate_parts_total(inv.id) ELSE inv.discount_amount END))
+            END,
+            inv.updated_at = GETDATE()
+        FROM invoices inv
+        JOIN tickets t ON t.id = inv.ticket_id
+        JOIN inserted i ON i.id = inv.id
+        WHERE inv.status = 'unpaid';
+    END
+END;
+GO
+```
+
+---
+
+#### 2.2.2. `trg_invoice_items_freeze_paid`: Khóa bất biến linh kiện hóa đơn đã thanh toán
+- **Bảng giám sát**: `invoice_items`
+- **Sự kiện**: `AFTER INSERT, UPDATE, DELETE`
+- **Mục đích**: Bảo đảm tính toàn vẹn kế toán. Một khi hóa đơn đã được thanh toán (`inv.status = 'paid'`), cấm tuyệt đối việc thêm linh kiện, sửa đổi số lượng hoặc xóa linh kiện khỏi hóa đơn.
+- **Xử lý**: Nếu phát hiện thao tác `INSERT`, `UPDATE` hoặc `DELETE` tác động vào các linh kiện thuộc hóa đơn có `status = 'paid'`, trigger lập tức `ROLLBACK TRANSACTION` và ném mã lỗi `50035`.
+
+```sql
+CREATE OR ALTER TRIGGER trg_invoice_items_freeze_paid
+ON invoice_items AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (
+        SELECT 1 
+        FROM (SELECT invoice_id FROM inserted UNION SELECT invoice_id FROM deleted) x
+        JOIN invoices inv ON inv.id = x.invoice_id
+        WHERE inv.status = 'paid'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50035, N'Cannot add, modify, or remove spare parts on an already paid invoice.', 1;
     END
 END;
 GO
